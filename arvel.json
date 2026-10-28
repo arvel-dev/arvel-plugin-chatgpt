@@ -1,0 +1,128 @@
+{
+  "id": "chatgpt",
+  "name": "ChatGPT",
+  "type": "provider",
+  "version": "0.1.0",
+  "pluginApi": "1",
+  "description": "OpenAI models through the official Codex CLI — with your ChatGPT plan or an OpenAI API key.",
+  "homepage": "https://github.com/arvel-dev/arvel-plugin-chatgpt",
+  "license": "Apache-2.0",
+  "entry": {
+    "darwin-arm64": {
+      "asset": "arvel-plugin-chatgpt_darwin_arm64.tar.gz",
+      "bin": "arvel-plugin-chatgpt"
+    },
+    "darwin-amd64": {
+      "asset": "arvel-plugin-chatgpt_darwin_amd64.tar.gz",
+      "bin": "arvel-plugin-chatgpt"
+    },
+    "linux-amd64": {
+      "asset": "arvel-plugin-chatgpt_linux_amd64.tar.gz",
+      "bin": "arvel-plugin-chatgpt"
+    },
+    "linux-arm64": {
+      "asset": "arvel-plugin-chatgpt_linux_arm64.tar.gz",
+      "bin": "arvel-plugin-chatgpt"
+    },
+    "windows-amd64": {
+      "asset": "arvel-plugin-chatgpt_windows_amd64.zip",
+      "bin": "arvel-plugin-chatgpt.exe"
+    },
+    "windows-arm64": {
+      "asset": "arvel-plugin-chatgpt_windows_arm64.zip",
+      "bin": "arvel-plugin-chatgpt.exe"
+    }
+  },
+  "checksums": "checksums.txt",
+  "requires": [
+    {
+      "binary": "codex",
+      "minVersion": "0.122.0",
+      "versionArgs": [
+        "--version"
+      ],
+      "install": {
+        "darwin": "npm i -g @openai/codex   # or: brew install --cask codex",
+        "linux": "npm i -g @openai/codex",
+        "windows": "npm i -g @openai/codex",
+        "docs": "https://developers.openai.com/codex/cli"
+      }
+    }
+  ],
+  "permissions": {
+    "spawn": [
+      "codex"
+    ],
+    "network": [],
+    "files": "session-cwd"
+  },
+  "sandbox": {
+    "vendorPaths": {
+      "read": [
+        "~/.codex"
+      ],
+      "write": []
+    },
+    "vendorHosts": [
+      "api.openai.com",
+      "chatgpt.com",
+      "*.chatgpt.com",
+      "auth.openai.com"
+    ],
+    "macosKeychain": false
+  },
+  "connections": [
+    {
+      "kind": "chatgpt",
+      "label": "ChatGPT plan (via Codex CLI)",
+      "billing": "subscription",
+      "description": "Uses Codex signed in with your ChatGPT account (Plus, Pro, Business, Enterprise, Edu).",
+      "config": {
+        "type": "object",
+        "properties": {
+          "codexPath": {
+            "type": "string",
+            "title": "Path to codex (leave empty to auto-detect)"
+          },
+          "separateLogin": {
+            "type": "boolean",
+            "default": false,
+            "title": "Use a separate Codex sign-in just for Arvel"
+          }
+        }
+      },
+      "secrets": []
+    },
+    {
+      "kind": "api_key",
+      "label": "OpenAI API key",
+      "billing": "api",
+      "description": "Pay per token with an OpenAI Platform API key. Isolated from your personal Codex setup.",
+      "config": {
+        "type": "object",
+        "properties": {
+          "codexPath": {
+            "type": "string",
+            "title": "Path to codex (leave empty to auto-detect)"
+          }
+        }
+      },
+      "secrets": [
+        {
+          "id": "apiKey",
+          "label": "OpenAI API key",
+          "pattern": "^sk-",
+          "required": true
+        }
+      ]
+    }
+  ],
+  "capabilities": {
+    "usage": "windows+tokens",
+    "subagents": true,
+    "resume": true,
+    "modelSwitch": "next-turn",
+    "effortSwitch": "next-turn"
+  },
+  "$schema": "https://raw.githubusercontent.com/arvel-dev/arvel-sdk/v0.1.2/schema/arvel.schema.json"
+}

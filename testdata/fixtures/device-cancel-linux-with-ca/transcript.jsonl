@@ -1,0 +1,12 @@
+{"direction":"client_to_server","message":{"id":1,"method":"initialize","params":{"clientInfo":{"name":"arvel","title":"Arvel","version":"0.1.0"}}}}
+{"direction":"server_to_client","message":{"id":1,"result":{"codexHome":"/scratch","platformFamily":"unix","platformOs":"linux","userAgent":"arvel/0.164.0 (Debian 12.0.0; aarch64) dumb (arvel; 0.1.0)"}}}
+{"direction":"client_to_server","message":{"method":"initialized"}}
+{"direction":"client_to_server","message":{"id":2,"method":"account/login/start","params":{"type":"chatgptDeviceCode"}}}
+{"direction":"server_to_client","message":{"emittedAtMs":1793162839283,"method":"configWarning","params":{"details":null,"summary":"Codex could not find bubblewrap on PATH. Install bubblewrap with your OS package manager. See the sandbox prerequisites: https://example.invalid/redacted Codex will use the bundled bubblewrap in the meantime."}}}
+{"direction":"server_to_client","message":{"emittedAtMs":1793162839283,"method":"remoteControl/status/changed","params":{"environmentId":null,"installationId":"id_6222b4a9d1372b04","serverName":"39e9fbe38649","status":"disabled"}}}
+{"direction":"server_to_client","message":{"id":2,"result":{"loginId":"id_947bdd4cfff8bf22","type":"chatgptDeviceCode","userCode":"[REDACTED]","verificationUrl":"[REDACTED]"}}}
+{"direction":"client_to_server","message":{"id":3,"method":"account/login/cancel","params":{"loginId":"id_947bdd4cfff8bf22"}}}
+{"direction":"server_to_client","message":{"id":3,"result":{"status":"canceled"}}}
+{"direction":"client_to_server","message":{"id":4,"method":"account/read","params":{"refreshToken":false}}}
+{"direction":"server_to_client","message":{"emittedAtMs":1793162839965,"method":"account/login/completed","params":{"error":"Login was not completed","loginId":"id_947bdd4cfff8bf22","onboardingEntrypoint":null,"success":false}}}
+{"direction":"server_to_client","message":{"id":4,"result":{"account":null,"requiresOpenaiAuth":true,"workspaceRouting":null}}}

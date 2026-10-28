@@ -1,0 +1,6 @@
+{"direction":"client_to_server","message":{"id":1,"method":"initialize","params":{"clientInfo":{"name":"arvel","title":"Arvel","version":"0.1.0"}}}}
+{"direction":"server_to_client","message":{"id":1,"result":{"codexHome":"/scratch","platformFamily":"unix","platformOs":"macos","userAgent":"arvel/0.164.0 (Mac OS 26.5.2; arm64) dumb (arvel; 0.1.0)"}}}
+{"direction":"client_to_server","message":{"method":"initialized"}}
+{"direction":"client_to_server","message":{"id":2,"method":"account/read","params":{"refreshToken":false}}}
+{"direction":"server_to_client","message":{"emittedAtMs":1793169045692,"method":"remoteControl/status/changed","params":{"environmentId":null,"installationId":"id_09348905a0b2ddf0","serverName":"MacBook-Pro-Aleksandr.local","status":"disabled"}}}
+{"direction":"server_to_client","message":{"id":2,"result":{"account":null,"requiresOpenaiAuth":true,"workspaceRouting":null}}}

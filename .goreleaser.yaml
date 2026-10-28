@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: MIT-0
+# Rename project_name, binary and the matching six arvel.json asset entries.
+version: 2
+project_name: arvel-plugin-chatgpt
+before:
+  hooks:
+    - sh scripts/prepare-release.sh {{ .Version }}
+builds:
+  - id: plugin
+    main: ./cmd/arvel-plugin-chatgpt
+    binary: arvel-plugin-chatgpt
+    env: [CGO_ENABLED=0]
+    goos: [darwin, linux, windows]
+    goarch: [amd64, arm64]
+    ldflags: ['-s -w -X main.version={{ .Version }}']
+archives:
+  - id: plugin
+    ids: [plugin]
+    name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}'
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - LICENSE
+      - NOTICE
+      - src: .release/arvel.json
+        dst: .
+        strip_parent: true
+checksum:
+  name_template: checksums.txt
+  extra_files:
+    - glob: .release/arvel.json
+release:
+  draft: true
+  prerelease: auto
+  extra_files:
+    - glob: .release/arvel.json

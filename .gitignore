@@ -13,3 +13,4 @@ CLAUDE.md
 coverage.*
 testdata/fixtures/raw/
 .DS_Store
+/.release/

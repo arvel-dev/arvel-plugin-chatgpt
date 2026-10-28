@@ -1,0 +1,10 @@
+ChatGPT for Arvel
+Copyright 2026 Arvel contributors
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+Build and release templates adapted from arvel-dev/arvel-sdk v0.1.2,
+licensed under MIT-0. Original SPDX notices are retained in those files.
+
+Codex protocol schema provenance and licensing are recorded alongside each
+schema version under testdata/schema/. No affiliation with OpenAI is implied.

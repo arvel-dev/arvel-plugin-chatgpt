@@ -1,0 +1,214 @@
+{
+  "ClientNotification.json:initialized": {
+    "envelope": "ClientNotification.json",
+    "pointer": "#/oneOf/0"
+  },
+  "ClientRequest.json:account/login/start": {
+    "envelope": "ClientRequest.json",
+    "pointer": "#/oneOf/82",
+    "params": "v2/LoginAccountParams.json",
+    "response": "v2/LoginAccountResponse.json"
+  },
+  "ClientRequest.json:account/logout": {
+    "envelope": "ClientRequest.json",
+    "pointer": "#/oneOf/84",
+    "response": "v2/LogoutAccountResponse.json"
+  },
+  "ClientRequest.json:account/rateLimits/read": {
+    "envelope": "ClientRequest.json",
+    "pointer": "#/oneOf/85",
+    "response": "v2/GetAccountRateLimitsResponse.json"
+  },
+  "ClientRequest.json:account/read": {
+    "envelope": "ClientRequest.json",
+    "pointer": "#/oneOf/104",
+    "params": "v2/GetAccountParams.json",
+    "response": "v2/GetAccountResponse.json"
+  },
+  "ClientRequest.json:initialize": {
+    "envelope": "ClientRequest.json",
+    "pointer": "#/oneOf/0",
+    "params": "v1/InitializeParams.json",
+    "response": "v1/InitializeResponse.json"
+  },
+  "ClientRequest.json:model/list": {
+    "envelope": "ClientRequest.json",
+    "pointer": "#/oneOf/67",
+    "params": "v2/ModelListParams.json",
+    "response": "v2/ModelListResponse.json"
+  },
+  "ClientRequest.json:thread/resume": {
+    "envelope": "ClientRequest.json",
+    "pointer": "#/oneOf/2",
+    "params": "v2/ThreadResumeParams.json",
+    "response": "v2/ThreadResumeResponse.json"
+  },
+  "ClientRequest.json:thread/start": {
+    "envelope": "ClientRequest.json",
+    "pointer": "#/oneOf/1",
+    "params": "v2/ThreadStartParams.json",
+    "response": "v2/ThreadStartResponse.json"
+  },
+  "ClientRequest.json:turn/interrupt": {
+    "envelope": "ClientRequest.json",
+    "pointer": "#/oneOf/65",
+    "params": "v2/TurnInterruptParams.json",
+    "response": "v2/TurnInterruptResponse.json"
+  },
+  "ClientRequest.json:turn/start": {
+    "envelope": "ClientRequest.json",
+    "pointer": "#/oneOf/63",
+    "params": "v2/TurnStartParams.json",
+    "response": "v2/TurnStartResponse.json"
+  },
+  "ServerNotification.json:account/login/completed": {
+    "envelope": "ServerNotification.json",
+    "pointer": "#/oneOf/84",
+    "params": "v2/AccountLoginCompletedNotification.json"
+  },
+  "ServerNotification.json:account/rateLimits/updated": {
+    "envelope": "ServerNotification.json",
+    "pointer": "#/oneOf/49",
+    "params": "v2/AccountRateLimitsUpdatedNotification.json"
+  },
+  "ServerNotification.json:account/updated": {
+    "envelope": "ServerNotification.json",
+    "pointer": "#/oneOf/47",
+    "params": "v2/AccountUpdatedNotification.json"
+  },
+  "ServerNotification.json:item/agentMessage/delta": {
+    "envelope": "ServerNotification.json",
+    "pointer": "#/oneOf/33",
+    "params": "v2/AgentMessageDeltaNotification.json"
+  },
+  "ServerNotification.json:item/completed": {
+    "envelope": "ServerNotification.json",
+    "pointer": "#/oneOf/32",
+    "params": "v2/ItemCompletedNotification.json"
+  },
+  "ServerNotification.json:item/started": {
+    "envelope": "ServerNotification.json",
+    "pointer": "#/oneOf/28",
+    "params": "v2/ItemStartedNotification.json"
+  },
+  "ServerNotification.json:thread/started": {
+    "envelope": "ServerNotification.json",
+    "pointer": "#/oneOf/1",
+    "params": "v2/ThreadStartedNotification.json"
+  },
+  "ServerNotification.json:thread/tokenUsage/updated": {
+    "envelope": "ServerNotification.json",
+    "pointer": "#/oneOf/21",
+    "params": "v2/ThreadTokenUsageUpdatedNotification.json"
+  },
+  "ServerNotification.json:turn/completed": {
+    "envelope": "ServerNotification.json",
+    "pointer": "#/oneOf/24",
+    "params": "v2/TurnCompletedNotification.json"
+  },
+  "ServerNotification.json:turn/diff/updated": {
+    "envelope": "ServerNotification.json",
+    "pointer": "#/oneOf/26",
+    "params": "v2/TurnDiffUpdatedNotification.json"
+  },
+  "ServerNotification.json:turn/plan/updated": {
+    "envelope": "ServerNotification.json",
+    "pointer": "#/oneOf/27",
+    "params": "v2/TurnPlanUpdatedNotification.json"
+  },
+  "ServerNotification.json:turn/started": {
+    "envelope": "ServerNotification.json",
+    "pointer": "#/oneOf/22",
+    "params": "v2/TurnStartedNotification.json"
+  },
+  "ServerRequest.json:item/commandExecution/requestApproval": {
+    "envelope": "ServerRequest.json",
+    "pointer": "#/oneOf/0",
+    "params": "CommandExecutionRequestApprovalParams.json",
+    "response": "CommandExecutionRequestApprovalResponse.json"
+  },
+  "ServerRequest.json:item/fileChange/requestApproval": {
+    "envelope": "ServerRequest.json",
+    "pointer": "#/oneOf/1",
+    "params": "FileChangeRequestApprovalParams.json",
+    "response": "FileChangeRequestApprovalResponse.json"
+  },
+  "ServerRequest.json:item/permissions/requestApproval": {
+    "envelope": "ServerRequest.json",
+    "pointer": "#/oneOf/4",
+    "params": "PermissionsRequestApprovalParams.json",
+    "response": "PermissionsRequestApprovalResponse.json"
+  },
+  "field:CommandExecutionRequestApprovalParams.json#/properties/command": {
+    "envelope": "CommandExecutionRequestApprovalParams.json",
+    "pointer": "#/properties/command"
+  },
+  "field:CommandExecutionRequestApprovalParams.json#/properties/itemId": {
+    "envelope": "CommandExecutionRequestApprovalParams.json",
+    "pointer": "#/properties/itemId"
+  },
+  "field:CommandExecutionRequestApprovalParams.json#/properties/threadId": {
+    "envelope": "CommandExecutionRequestApprovalParams.json",
+    "pointer": "#/properties/threadId"
+  },
+  "field:CommandExecutionRequestApprovalParams.json#/properties/turnId": {
+    "envelope": "CommandExecutionRequestApprovalParams.json",
+    "pointer": "#/properties/turnId"
+  },
+  "field:PermissionsRequestApprovalResponse.json#/properties/permissions": {
+    "envelope": "PermissionsRequestApprovalResponse.json",
+    "pointer": "#/properties/permissions"
+  },
+  "field:PermissionsRequestApprovalResponse.json#/properties/scope": {
+    "envelope": "PermissionsRequestApprovalResponse.json",
+    "pointer": "#/properties/scope"
+  },
+  "field:v1/InitializeParams.json#/properties/clientInfo": {
+    "envelope": "v1/InitializeParams.json",
+    "pointer": "#/properties/clientInfo"
+  },
+  "field:v2/ThreadStartParams.json#/properties/approvalPolicy": {
+    "envelope": "v2/ThreadStartParams.json",
+    "pointer": "#/properties/approvalPolicy"
+  },
+  "field:v2/ThreadStartParams.json#/properties/config": {
+    "envelope": "v2/ThreadStartParams.json",
+    "pointer": "#/properties/config"
+  },
+  "field:v2/ThreadStartParams.json#/properties/cwd": {
+    "envelope": "v2/ThreadStartParams.json",
+    "pointer": "#/properties/cwd"
+  },
+  "field:v2/ThreadStartParams.json#/properties/developerInstructions": {
+    "envelope": "v2/ThreadStartParams.json",
+    "pointer": "#/properties/developerInstructions"
+  },
+  "field:v2/ThreadStartParams.json#/properties/ephemeral": {
+    "envelope": "v2/ThreadStartParams.json",
+    "pointer": "#/properties/ephemeral"
+  },
+  "field:v2/ThreadStartParams.json#/properties/model": {
+    "envelope": "v2/ThreadStartParams.json",
+    "pointer": "#/properties/model"
+  },
+  "field:v2/ThreadStartParams.json#/properties/sandbox": {
+    "envelope": "v2/ThreadStartParams.json",
+    "pointer": "#/properties/sandbox"
+  },
+  "field:v2/TurnStartParams.json#/properties/effort": {
+    "envelope": "v2/TurnStartParams.json",
+    "pointer": "#/properties/effort"
+  },
+  "field:v2/TurnStartParams.json#/properties/input": {
+    "envelope": "v2/TurnStartParams.json",
+    "pointer": "#/properties/input"
+  },
+  "field:v2/TurnStartParams.json#/properties/model": {
+    "envelope": "v2/TurnStartParams.json",
+    "pointer": "#/properties/model"
+  },
+  "field:v2/TurnStartParams.json#/properties/threadId": {
+    "envelope": "v2/TurnStartParams.json",
+    "pointer": "#/properties/threadId"
+  }
+}

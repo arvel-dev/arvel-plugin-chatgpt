@@ -1,0 +1,27 @@
+{
+  "provenance": "synthetic golden expectation for G5 discovery implementation",
+  "servers": [
+    {
+      "name": "example_stdio",
+      "command": "example-server",
+      "args": [
+        "--stdio"
+      ],
+      "env": {
+        "EXAMPLE_API_KEY": {
+          "secret": true
+        },
+        "EXAMPLE_TOKEN": {
+          "envRef": "EXAMPLE_TOKEN"
+        }
+      }
+    },
+    {
+      "name": "example_http",
+      "url": "https://mcp.example.invalid/api",
+      "bearerToken": {
+        "envRef": "EXAMPLE_BEARER"
+      }
+    }
+  ]
+}
