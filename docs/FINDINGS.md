@@ -291,18 +291,37 @@ content was opened.
 
 ## V13 — Nested Arvel sandbox and CONNECT proxy
 
-**Deferred by explicit user approval to future host integration. Not verified.** The local arvel checkout
-and the remote main tree had no sandbox implementation or FINDINGS/P9 report
-when inspected. Generic Docker execution proves neither Arvel's host boundary
-nor cross-platform nesting/proxy behavior.
+**Deferred to the actual production M5c host boundary. Not verified.** Plugin
+milestone development and release conformance continue independently against
+SDK v0.1.2 and mockhost; neither M0 nor M5c completion is a prerequisite for those
+stages. Real host/CLI compatibility and any conditional native-sandbox fallback
+remain separate evidence gates.
+
+On 2026-10-28 the owner reported M0 complete locally, with GitHub checks and merge
+remaining. The inspected local host revision is
+`f32141ba222fc3cdbda66bf935e247d79500f283` (`feat/m0-foundation`). Its accepted
+ADR-14 and `docs/sandbox-contract.md` explicitly assign synthetic OS feasibility
+to M0 and the production launcher/proxy to M5c. M0 artifacts are not a stable
+plugin-launch API. The host's named-vendor runner was removed; its historical
+CLI experiments cannot establish compatibility or justify a fallback.
+
+The pinned SDK already supplies manifest declarations, `sandbox.mode` and
+`sandbox.proxy`; no wire/SDK change is required. G2 tests verify proxy environment
+forwarding through a synthetic vendor. Those tests and the standalone private-home
+Codex smoke establish no actual CONNECT/allow-list, denied-path or nesting result.
 
 Do not enable a danger-full-access fallback without a reproduced failure inside
-a real os/container host sandbox on that OS. Mode none always retains vendor
-sandboxing. The granted user exception remains conditional. SDK proxy-env tests
-pass, but they are not real CONNECT/host allow-list evidence. macOS/Linux/Windows
-nesting, denied-path tests and sanitized proxy logs must be recorded once P9 is
-available. This approved deferral does not block G0, but it does block claims
-of verified host integration or any sandbox fallback until actual evidence exists.
+a real effective M5c os/container sandbox on that OS, with isolation still
+verified. Mode none always retains vendor sandboxing. Record native
+macOS/Linux/Windows results, actual host/plugin/CLI revisions and sanitized proxy
+logs when that production boundary exists. No M0 profile or generic Docker run
+substitutes for this evidence. [The integration handoff](HOST-INTEGRATION.md)
+defines the required matrix and current unverified cells.
+
+The immutable SPEC's P9 wording is retained; this is a factual dependency
+reconciliation to the owner-approved host contract, preserving security and
+product semantics under the standing compatibility delegation. The development
+sandbox probe now identifies M5c instead of promising a nonexistent P9 launcher.
 
 ## SDK manifest reconciliation
 
@@ -497,3 +516,23 @@ leaves an existing account signed in. The manager regression failed before the
 fix and passed afterward; a real-transport/SDK fakevendor test proves that two
 consecutive failed attempts each emit status_changed. Raw vendor failure text
 is never forwarded.
+
+
+## Post-M0 handoff validation
+
+The follow-up reconciles V13 with the host's accepted sandbox contract at
+f32141ba222fc3cdbda66bf935e247d79500f283; it does not implement a private launcher
+or grant new sandbox permissions. The regression for stale P9 launcher guidance
+failed before the diagnostic fix and passed afterward, also checking that an
+unavailable sandbox probe creates no output. Existing offline race, vet,
+staticcheck v0.8.2, fixture validation and pure-Go build checks pass.
+
+The first tagged e2e command inadvertently selected the entire package. It passed
+in 132.209s and included real shared-account model calls; it completed before any
+interrupt signal was sent. These are standalone CLI tests, not M5c integration.
+The documented reproduction command now filters exactly
+TestAppServer_TransportHandshake, with count=1 and a 45-second suite timeout, to
+keep the private-home smoke separate from the broader model scenarios. The
+filtered smoke also passed without sign-in or a model request. No resulting
+recording is added to the committed fixtures; test temporary state is owned by
+the existing harness. Real host/CLI compatibility remains unverified.

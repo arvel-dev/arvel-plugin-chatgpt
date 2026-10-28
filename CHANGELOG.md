@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Clarify independent plugin development and the production host sandbox compatibility gate.
+
 ### Fixed
 
 ### Removed

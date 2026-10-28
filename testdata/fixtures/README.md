@@ -36,7 +36,9 @@ and permissions requests and, by default, file requests. Explicit edit decision
 scenarios accept or cancel only an observed fileChange targeting exactly the
 scratch arvel_probe.txt, with canonicalized paths. No other path is approved.
 It never enables experimental APIs or persistent policy rules and refuses
-sandbox measurements without the actual Arvel P9 environment. Per-recording
+sandbox measurements without the actual production Arvel M5c launcher/native
+target. M0 P9 is a feasibility lab, not a plugin-launch API; see the
+[host integration handoff](../../docs/HOST-INTEGRATION.md). Per-recording
 schemaOverrides in index.json pin historical CLI captures to their exact bundle.
 
 The device-login scenario requires a private home and deliberately displays the

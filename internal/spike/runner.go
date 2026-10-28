@@ -70,7 +70,7 @@ func Run(ctx context.Context, o RunOptions) error {
 		return errors.New("unknown recording command")
 	}
 	if o.Mode == "sandbox" {
-		return errors.New("sandbox probe requires an actual Arvel P9 launcher and native target; not available")
+		return errors.New("sandbox probe requires the production Arvel M5c launcher and native target; M0 P9 is feasibility only; see docs/HOST-INTEGRATION.md")
 	}
 	if o.Out == "" {
 		return errors.New("probe requires --out")
