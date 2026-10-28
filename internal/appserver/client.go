@@ -172,3 +172,8 @@ func (c *Client) Done() <-chan struct{} { return c.done }
 
 // Err is safe to call concurrently; it is meaningful after Done closes.
 func (c *Client) Err() error { c.mu.Lock(); defer c.mu.Unlock(); return c.err }
+
+// WaitResponses waits only for currently pending server replies for this turn.
+func (c *Client) WaitResponses(ctx context.Context, threadID, turnID string) error {
+	return c.peer.WaitResponses(ctx, threadID, turnID)
+}

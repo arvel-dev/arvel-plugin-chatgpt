@@ -1,0 +1,14 @@
+{
+  "arch": "arm64",
+  "completed": false,
+  "coverage": "private-home startup only; no account or model turn; hooks/plugin/resume not certified",
+  "home": "private",
+  "mcpAfterPreflightObserved": true,
+  "os": "darwin",
+  "recordedAt": "2026-10-28T11:45:13Z",
+  "sanitization": "in-memory before persistence",
+  "scenario": "config-isolation-race",
+  "schemaVersion": "0.164.0",
+  "securityGatePassed": false,
+  "version": "0.164.0"
+}

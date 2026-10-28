@@ -1,0 +1,17 @@
+{
+  "arch": "arm64",
+  "candidate": "config-isolation-private",
+  "completed": true,
+  "coverage": "real CLI start, two turns and unloaded-thread resume; synthetic loopback model backend; no account/OpenAI/model-spend or actual host sandbox certification",
+  "home": "private",
+  "inheritedExecutableObserved": false,
+  "lateSource": "owned synthetic project configuration",
+  "mcpAfterPreflightObserved": false,
+  "os": "darwin",
+  "recordedAt": "2026-10-28T13:24:18Z",
+  "sanitization": "in-memory before persistence",
+  "scenario": "config-isolation-private",
+  "schemaVersion": "0.164.0",
+  "securityGatePassed": true,
+  "version": "0.164.0"
+}

@@ -84,15 +84,63 @@ func TestRecorderHelper(t *testing.T) {
 			}
 			_ = encoder.Encode(map[string]any{"id": m.ID, "result": map[string]any{"codexHome": "/scratch", "platformFamily": "unix", "platformOs": "macos", "userAgent": "fixture-helper"}})
 		case "initialized":
-			if mode != "child-completes-first" && mode != "device-login" {
+			if mode != "child-completes-first" && mode != "device-login" && !strings.HasPrefix(mode, "isolation-") {
 				os.Exit(0)
 			}
 		case "account/login/start":
 			_ = encoder.Encode(map[string]any{"id": m.ID, "result": map[string]any{"type": "chatgptDeviceCode", "loginId": "login-probe", "userCode": "DEVICE-CANARY", "verificationUrl": "https://auth.openai.com/codex/device"}})
 			_ = encoder.Encode(map[string]any{"method": "account/login/completed", "params": map[string]any{"loginId": "login-probe", "success": true, "error": nil}})
+		case "config/read":
+			binary, err := os.Executable()
+			if err != nil {
+				os.Exit(9)
+			}
+			cwd, err := os.Getwd()
+			if err != nil {
+				os.Exit(9)
+			}
+			var params struct {
+				CWD *string `json:"cwd"`
+			}
+			if json.Unmarshal(m.Params, &params) != nil {
+				os.Exit(9)
+			}
+			servers := map[string]any{"global_probe": map[string]any{"command": binary}}
+			if params.CWD != nil {
+				servers["project_probe"] = map[string]any{}
+			}
+			_ = encoder.Encode(map[string]any{"id": m.ID, "result": map[string]any{"config": map[string]any{"mcp_servers": servers}, "origins": map[string]any{"projects." + cwd: map[string]any{}}}})
 		case "account/read":
 			_ = encoder.Encode(map[string]any{"id": m.ID, "result": map[string]any{"requiresOpenaiAuth": true, "account": map[string]any{"type": "chatgpt", "email": nil, "planType": "plus"}}})
 		case "thread/start":
+			if mode == "isolation-race" || mode == "isolation-untrusted-user" {
+				var params struct {
+					CWD    string `json:"cwd"`
+					Config struct {
+						MCP      map[string]any `json:"mcp_servers"`
+						Projects map[string]struct {
+							Trust string `json:"trust_level"`
+						} `json:"projects"`
+					} `json:"config"`
+				}
+				if json.Unmarshal(m.Params, &params) != nil {
+					os.Exit(8)
+				}
+				if mode == "isolation-untrusted-user" {
+					if params.Config.Projects[params.CWD].Trust != "untrusted" {
+						os.Exit(10)
+					}
+					if _, exists := params.Config.MCP["project_probe"]; exists {
+						os.Exit(11)
+					}
+					if _, exists := params.Config.MCP["global_probe"]; !exists {
+						os.Exit(12)
+					}
+				}
+				if IsolationMarker(filepath.Join(params.CWD, "isolation-late.sentinel")) != nil {
+					os.Exit(8)
+				}
+			}
 			_ = encoder.Encode(map[string]any{"id": m.ID, "result": map[string]any{"thread": map[string]any{"id": "parent"}}})
 		case "turn/start":
 			_ = encoder.Encode(map[string]any{"id": m.ID, "result": map[string]any{"turn": map[string]any{"id": "parent-turn"}}})

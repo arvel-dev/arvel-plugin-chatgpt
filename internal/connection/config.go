@@ -14,7 +14,7 @@ import (
 	"github.com/arvel-dev/arvel-sdk/protocol"
 )
 
-const minimumVersion = "0.122.0"
+const minimumVersion = "0.164.0"
 const installURL = "https://developers.openai.com/codex/cli"
 
 type config struct {
@@ -24,6 +24,9 @@ type config struct {
 
 func parseConfig(meta protocol.InitMeta) (config, error) {
 	c := config{kind: meta.Connection.Kind, dataDir: meta.DataDir, remote: meta.Platform.Remote, key: meta.Connection.Secrets["apiKey"]}
+	// New Arvel connections authenticate independently; explicit false is a
+	// legacy G2 catalog/status mode and cannot acquire an agent session.
+	c.separate = c.kind == "chatgpt"
 	if c.kind != "chatgpt" && c.kind != "api_key" {
 		return c, errors.New("unsupported connection kind")
 	}

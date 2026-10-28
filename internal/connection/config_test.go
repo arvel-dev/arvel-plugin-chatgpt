@@ -104,3 +104,27 @@ func TestConfig_InvalidAndDevOverride(t *testing.T) {
 		t.Fatal("found nonexistent binary")
 	}
 }
+
+func TestConfig_NewChatGPTConnectionDefaultsToPrivateHome(t *testing.T) {
+	dir := t.TempDir()
+	c, err := parseConfig(protocol.InitMeta{DataDir: dir, Connection: protocol.ConnectionInfo{Kind: "chatgpt"}})
+	if err != nil || !c.separate || c.home != filepath.Join(dir, "codex-home") {
+		t.Fatalf("new connection must use its own login: %+v %v", c, err)
+	}
+}
+
+func TestAccountLabel_IsRecognizableWithoutFullIdentity(t *testing.T) {
+	for _, tc := range []struct{ email, want string }{
+		{"alice@example.invalid", "a***@example.invalid"},
+		{"bob@example.invalid", "b***@example.invalid"},
+		{"not-an-email", "ChatGPT account"},
+		{"Alice <alice@example.invalid>", "ChatGPT account"},
+		{"bad\n@example.invalid", "ChatGPT account"},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			if got := maskedEmail(&tc.email); got != tc.want {
+				t.Fatalf("label %q want %q", got, tc.want)
+			}
+		})
+	}
+}

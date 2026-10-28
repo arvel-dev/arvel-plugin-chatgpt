@@ -38,11 +38,12 @@ type PeerOptions struct {
 // Peer wraps SDK correlation and ordering with the observed Codex envelope dialect.
 type Peer struct {
 	rpc      *jsonrpc.Peer
+	state    *dialect
 	redactor *redact.Redactor
 	log      *slog.Logger
 }
 
-var clientMethods = map[string]bool{"initialize": true, "account/read": true, "account/login/start": true, "account/login/cancel": true, "account/logout": true, "account/rateLimits/read": true, "model/list": true, "thread/start": true, "thread/resume": true, "turn/start": true, "turn/interrupt": true}
+var clientMethods = map[string]bool{"initialize": true, "account/read": true, "account/login/start": true, "account/login/cancel": true, "account/logout": true, "account/rateLimits/read": true, "model/list": true, "config/read": true, "configRequirements/read": true, "thread/start": true, "thread/resume": true, "thread/unsubscribe": true, "turn/start": true, "turn/interrupt": true}
 var serverMethods = []string{"item/commandExecution/requestApproval", "item/fileChange/requestApproval", "item/permissions/requestApproval", "mcpServer/elicitation/request"}
 var notificationMethods = []string{"account/login/completed", "account/updated", "account/rateLimits/updated", "thread/started", "thread/status/changed", "turn/started", "turn/completed", "turn/plan/updated", "turn/diff/updated", "item/started", "item/completed", "item/agentMessage/delta", "item/reasoning/summaryTextDelta", "item/reasoning/summaryPartAdded", "item/reasoning/textDelta", "thread/tokenUsage/updated"}
 
@@ -56,7 +57,7 @@ func NewPeer(input io.Reader, output io.Writer, o PeerOptions) *Peer {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
-	state := &dialect{active: map[string]bool{}}
+	state := &dialect{active: map[string]*pendingResponse{}, handledNotifications: map[string]bool{}}
 	rpc := jsonrpc.NewPeer(&liteReader{scanner: jsonl.NewScanner(input, 0), state: state}, &liteWriter{output: output, state: state}, jsonrpc.WithMaxLine(jsonl.DefaultMaxLine+32), jsonrpc.WithDrainTimeout(time.Second), jsonrpc.WithNotificationKey(func(_ string, raw json.RawMessage) string {
 		var v struct {
 			ThreadID string `json:"threadId"`
@@ -64,7 +65,7 @@ func NewPeer(input io.Reader, output io.Writer, o PeerOptions) *Peer {
 		_ = json.Unmarshal(raw, &v)
 		return v.ThreadID
 	}))
-	p := &Peer{rpc: rpc, redactor: rd, log: log}
+	p := &Peer{rpc: rpc, state: state, redactor: rd, log: log}
 	for _, method := range serverMethods {
 		handler := o.Requests[method]
 		rpc.Handle(method, func(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -88,14 +89,26 @@ func NewPeer(input io.Reader, output io.Writer, o PeerOptions) *Peer {
 	}
 	for _, method := range notificationMethods {
 		if h := o.Notifications[method]; h != nil {
-			rpc.HandleNotification(method, func(ctx context.Context, raw json.RawMessage) { h(ctx, raw) })
+			state.handledNotifications[method] = true
+			rpc.HandleNotification(method, func(ctx context.Context, raw json.RawMessage) {
+				defer state.finishNotification(method, raw)
+				h(ctx, raw)
+			})
 		}
 	}
 	return p
 }
 
 // Serve owns SDK dispatch until EOF or cancellation. It never logs raw SDK errors.
-func (p *Peer) Serve(ctx context.Context) error { return p.rpc.Serve(ctx) }
+func (p *Peer) Serve(ctx context.Context) error {
+	defer p.state.fail(ErrExited)
+	return p.rpc.Serve(ctx)
+}
+
+// WaitResponses confirms actual writes for a fixed snapshot of pending replies.
+func (p *Peer) WaitResponses(ctx context.Context, threadID, turnID string) error {
+	return p.state.wait(ctx, threadID, turnID)
+}
 
 // Call cancels only this wait; late responses are dropped by the SDK.
 func (p *Peer) Call(ctx context.Context, method string, params, result any) error {

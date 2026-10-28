@@ -36,7 +36,10 @@ func (m *Manager) Action(ctx context.Context, id string) (protocol.ActionResult,
 			return protocol.ActionResult{}, unavailable("Cannot sign out of private Codex login")
 		}
 		m.revision.Add(1)
-		m.remember(m.status(ctx, false), true)
+		// Retire all borrowed threads and their native session approvals. A
+		// subsequent sign-in must acquire a fresh authenticated generation.
+		m.closeClient()
+		m.remember(m.state(protocol.StateNeedsLogin, "Sign in to this connection"), true)
 		return protocol.ActionResult{Kind: protocol.ActionKindDone, Message: "Signed out of Arvel login"}, nil
 	}
 	kind := "chatgpt"

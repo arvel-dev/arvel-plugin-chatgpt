@@ -63,6 +63,10 @@ func (m *Manager) run() {
 				_ = m.client.Close(context.Background())
 				m.reset()
 			}
+			if m.retiring != nil {
+				_ = m.retiring.Close(context.Background())
+				m.retiring = nil
+			}
 			m.gate <- struct{}{}
 			return
 		case <-death:

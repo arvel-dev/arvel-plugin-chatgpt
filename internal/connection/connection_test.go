@@ -640,3 +640,5 @@ func TestManager_FailedReplacementLoginPreservesExistingAccount(t *testing.T) {
 		t.Fatalf("existing account lost: %+v", st)
 	}
 }
+
+func (f *fakeClient) WaitResponses(ctx context.Context, _, _ string) error { return ctx.Err() }
