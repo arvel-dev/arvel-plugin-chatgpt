@@ -72,8 +72,40 @@ type ModelListParams struct {
 
 // ModelListResponse retains model payloads for the G2 mapper.
 type ModelListResponse struct {
-	Data       []json.RawMessage `json:"data"`
-	NextCursor *string           `json:"nextCursor"`
+	Data       []Model `json:"data"`
+	NextCursor *string `json:"nextCursor"`
+}
+
+// Model is the stable executable model catalog subset.
+type Model struct {
+	ID                        string            `json:"id"`
+	Model                     string            `json:"model"`
+	DisplayName               string            `json:"displayName"`
+	Description               string            `json:"description"`
+	Hidden                    bool              `json:"hidden"`
+	IsDefault                 bool              `json:"isDefault"`
+	SupportedReasoningEfforts []ReasoningEffort `json:"supportedReasoningEfforts"`
+	DefaultReasoningEffort    string            `json:"defaultReasoningEffort"`
+	InputModalities           []string          `json:"inputModalities,omitempty"`
+}
+
+// ReasoningEffort describes a vendor effort without inventing an enum.
+type ReasoningEffort struct {
+	ReasoningEffort string `json:"reasoningEffort"`
+	Description     string `json:"description"`
+}
+
+// LoginCompleted identifies the browser/device attempt that finished.
+type LoginCompleted struct {
+	LoginID *string `json:"loginId"`
+	Success bool    `json:"success"`
+	Error   *string `json:"error"`
+}
+
+// AccountUpdated is an invalidation signal; account/read is authoritative.
+type AccountUpdated struct {
+	AuthMode *string `json:"authMode"`
+	PlanType *string `json:"planType"`
 }
 
 // ThreadStartParams contains only source-verified stable overrides.

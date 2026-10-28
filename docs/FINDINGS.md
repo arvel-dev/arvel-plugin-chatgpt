@@ -407,3 +407,93 @@ A gated G1 smoke test also passed against the installed real Codex app-server:
 initialize/initialized, account/read with a fresh private CODEX_HOME, then owned
 shutdown. It used no login or credential-file access and confirmed no inherited
 account. This is distinct from synthetic fakevendor coverage.
+
+
+## G2 — Connections, authentication and model discovery
+
+SDK v0.1.2's `plugin.HostAware.SetHost` supplies `Host.StatusChanged` and the host
+logger. Initialization only validates local connection metadata; executable
+resolution, the minimum 0.122.0 version check and app-server startup happen lazily.
+One manager owns the process and a cancellable refresh worker. Requests have a
+15-second bound, including gate wait, and do not own the established process.
+Vendor startup cancellation closes an incomplete process. Account notifications
+are queued without RPC in the callback; authoritative `account/read` refresh and
+30-second polling detect login/logout. Process death publishes an error, clears
+the catalog revision and permits restart on the next explicit operation; no
+request or model turn is automatically replayed.
+
+The actual SDK initialization shape is `Connection.Config`/`Secrets`,
+`Platform.Remote`, `DataDir`, and optional `Sandbox.Proxy`. The environment uses
+SDK `EnvBuilder.Proxy` and preserves real HOME while removing inherited auth and
+CODEX_HOME. Only default ChatGPT omits explicit CODEX_HOME; separate ChatGPT and
+API-key connections use the connection data directory's `codex-home`. No
+credential file is inspected. Existing private-home symlinks are rejected and
+private directory permissions are restricted. Shared logout is unavailable.
+Host V13 integration remains deferred; synthetic proxy forwarding is not proof
+of host CONNECT, nesting, filesystem-write or cross-OS sandbox compatibility.
+
+`account/read.account.planType` is stable in both committed versions, so G2 uses
+it for the status plan without implementing G4's rate-limit mapping. Email labels
+are masked. `requiresOpenaiAuth` is not a signed-out flag: it is also true for
+recorded signed-in accounts. Readiness requires the connection's expected account
+type. API keys are always applied from initialize secrets in the private home,
+replacing any stale private account. Host key changes use a new plugin process;
+the old persisted private login is logged out before applying the replacement.
+As established by V9, local key acceptance proves configuration only, not valid
+remote credentials or spend. The status deliberately says "API key configured
+in Codex"; real key verification and model calls were not performed in G2.
+
+Browser/device login returns only the SDK URL action and deliberate challenge
+explanation. The plugin never launches a browser itself. A matching nonempty
+completion loginId clears its pending attempt; stale or null-ID completions can
+trigger account refresh but cannot cancel a newer login. Repeating login cancels
+the old attempt. Failed/cancelled starts with no known loginId close the vendor
+process to avoid an abandoned flow. Challenges and keys are registered with the
+redactor and never logged by connection code.
+
+A real read-only `models-paginated` recording on Codex 0.164.0/macOS arm64 verifies
+`includeHidden:true`, `limit:1`, and the actual returned pagination cursors. All
+pages are sanitized and indexed. It uses shared account discovery without login,
+logout or a model turn. The development recorder's fixed models scenario now
+walks this bounded pagination path. Stable request fields are schema-validated
+against both 0.122.0 and 0.164.0; identical generated schemas were not regenerated.
+
+The executable `model` slug becomes SDK `Model.ID`, and `isDefault` becomes the
+catalog default. The recorder hashes all string fields named `id`, so the opaque
+IDs in sanitized G0 catalogs do not prove that real vendor id/model values differ.
+Using `model` avoids treating sanitized identifiers as executable model names.
+The mapper retains a hidden default, filters unsupported effort values, offers
+`max` independently of `xhigh` (V10), and excludes `ultra` delegation. Unsupported
+default efforts are omitted; absent inputModalities uses the committed schema's
+text/image default. Empty, duplicate, incomplete or ambiguous-default catalogs
+fail instead of inventing a fallback model. Pagination has cursor-cycle, page and
+model-count bounds. Complete catalogs are cached six hours, with defensive copies,
+forced refresh and account/process revision invalidation; failed refresh does not
+overwrite a valid complete cache.
+
+Evidence: typed real-payload schema replay, real paginated capture, deterministic
+connection/model tests and the self-executing provider fakevendor. The latter
+exercises actual production discovery/version/transport/environment and SDK calls,
+including an early login completion notification. Session features remain false,
+sessions return an explicit unavailable error, and usage remains unknown until
+G3/G4. No real interactive login was repeated, no API key was requested, and no
+sandbox fallback was enabled.
+
+G2 verification on Go 1.27.3 passed `go test -race ./...`, vet, staticcheck v0.8.2, offline
+fixture validation and pure-Go builds (native macOS arm64, cross-build Windows
+amd64/Linux arm64). govulncheck found zero reachable vulnerabilities and zero
+affected imported packages. It reported two module-only advisories in the
+pre-existing transitive `golang.org/x/text v0.14.0`: GO-2026-6629 and
+GO-2026-5970. Their affected packages are not imported by this repository; G2
+does not introduce a dependency override. No full native cross-OS or real Arvel
+sandbox compatibility is claimed by these checks.
+
+A review regression check found that failed login completion originally looked
+identical to the previous signed-out status, so both manager and SDK deduplication
+could suppress its notification. The fix preserves matched completion success,
+emits a safe failure/cancellation message and a distinct pending message on retry.
+It preserves authoritative account readiness even if a failed replacement login
+leaves an existing account signed in. The manager regression failed before the
+fix and passed afterward; a real-transport/SDK fakevendor test proves that two
+consecutive failed attempts each emit status_changed. Raw vendor failure text
+is never forwarded.

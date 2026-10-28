@@ -28,6 +28,7 @@
     "limits/transcript.jsonl",
     "mcp-declined-elicitation/transcript.jsonl",
     "mcp/transcript.jsonl",
+    "models-paginated/transcript.jsonl",
     "models/transcript.jsonl",
     "network-allow/transcript.jsonl",
     "network-deny/transcript.jsonl",
