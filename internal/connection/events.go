@@ -19,6 +19,7 @@ func (m *Manager) signal() {
 
 func (m *Manager) accountEvent(_ context.Context, _ json.RawMessage) {
 	m.revision.Add(1)
+	m.invalidateQuotaObservation()
 	m.signal()
 }
 
@@ -35,6 +36,7 @@ func (m *Manager) loginEvent(_ context.Context, raw json.RawMessage) {
 		m.eventsMu.Unlock()
 	}
 	m.revision.Add(1)
+	m.invalidateQuotaObservation()
 	m.signal()
 }
 
@@ -86,8 +88,10 @@ func (m *Manager) run() {
 			death = nil
 		case <-m.wake:
 			death = m.refresh()
+			m.publishUsage()
 		case <-ticker.C:
 			death = m.refresh()
+			m.publishUsage()
 		}
 	}
 }

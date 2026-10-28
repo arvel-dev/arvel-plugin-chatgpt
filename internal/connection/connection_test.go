@@ -18,22 +18,26 @@ import (
 )
 
 type fakeClient struct {
-	mu          sync.Mutex
-	account     *schema.Account
-	calls       []string
-	opts        appserver.Options
-	done        chan struct{}
-	once        sync.Once
-	login       int
-	keyError    bool
-	readBlock   <-chan struct{}
-	loginBlock  <-chan struct{}
-	early       bool
-	invalid     bool
-	pages       map[string]schema.ModelListResponse
-	modelError  bool
-	modelParams []schema.ModelListParams
-	onModel     func()
+	mu           sync.Mutex
+	account      *schema.Account
+	calls        []string
+	opts         appserver.Options
+	done         chan struct{}
+	once         sync.Once
+	login        int
+	keyError     bool
+	readBlock    <-chan struct{}
+	loginBlock   <-chan struct{}
+	early        bool
+	invalid      bool
+	pages        map[string]schema.ModelListResponse
+	modelError   bool
+	modelParams  []schema.ModelListParams
+	onModel      func()
+	quota        any
+	quotaError   bool
+	accountError bool
+	onQuota      func()
 }
 
 func (f *fakeClient) Call(ctx context.Context, method string, params, result any) error {
@@ -58,7 +62,18 @@ func (f *fakeClient) Call(ctx context.Context, method string, params, result any
 	var response any
 	switch method {
 	case "account/read":
+		if f.accountError {
+			return errors.New("account unavailable")
+		}
 		response = schema.AccountReadResponse{Account: f.account, RequiresOpenAIAuth: true}
+	case "account/rateLimits/read":
+		if f.onQuota != nil {
+			f.onQuota()
+		}
+		if f.quotaError {
+			return errors.New("synthetic quota error")
+		}
+		response = map[string]any{"rateLimits": f.quota}
 	case "account/logout":
 		f.account = nil
 		response = struct{}{}

@@ -6,6 +6,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- ChatGPT quota windows, reset times, live usage updates and per-turn token counts.
+- Typed quota, authentication, context and model errors with resumable conversations after quota exhaustion.
+
 - Streaming agent sessions with resumable conversations, model and reasoning options, and local turn budgets.
 - Command and file approval requests, graceful cancellation and shared-process crash recovery.
 

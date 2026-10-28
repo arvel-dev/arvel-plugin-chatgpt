@@ -33,7 +33,7 @@ func TestProvider_ReportsMissingBinaryWithoutCredentialLeak(t *testing.T) {
 		t.Fatalf("status: %+v, %v", status, err)
 	}
 	usage, err := h.Usage()
-	if err != nil || usage.Source != protocol.UsageSourceUnknown || len(usage.Windows) != 0 || usage.Spend != nil {
+	if err != nil || usage.Source != protocol.UsageSourceUnknown || len(usage.Windows) != 0 || (usage.Spend == nil || usage.Spend.Source != protocol.UsageSourceUnknown) {
 		t.Fatalf("usage: %+v, %v", usage, err)
 	}
 	for name, call := range map[string]func() error{

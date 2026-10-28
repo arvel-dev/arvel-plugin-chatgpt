@@ -118,10 +118,21 @@ these capabilities.
 
 ## Usage and limits
 
-Usage and typed quota/error mapping are planned for the next milestone. Currently
-connection usage is unknown, and no token cost or USD spend is inferred. A nonzero
-USD budget is rejected. A local `maxTurns` budget stops before the next turn and
-survives in-process recovery and idle reload.
+ChatGPT connections report quota windows with duration-based labels, reset times
+and warning/exhausted states. Limits are read after sign-in, refreshed on vendor
+updates and every ten minutes while turns run. Unknown observations remain
+explicitly unknown; the host receives coalesced usage updates.
+
+Each turn reports its last observed input, output and cached input token counts.
+API-key connections have no subscription windows. USD spend and token cost remain
+unknown; no prices are estimated and a nonzero USD budget is rejected. A local
+`maxTurns` budget survives in-process recovery and idle reload.
+
+Explicit quota failures return `rate_limited` and keep the thread resumable after
+reset. Reset hints are included only when a fresh matching window is unambiguous.
+Authentication, context, model and transient overload errors have distinct codes.
+Live quota exhaustion and API-key billing have not been measured; quota recovery
+is covered by source-derived offline tests.
 
 ## Troubleshooting
 

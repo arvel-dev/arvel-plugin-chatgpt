@@ -25,3 +25,8 @@ unit fakes additionally cover pagination, account polling/events, stale login
 completion, cache expiry/invalidation, crashes, cancellation and owned shutdown.
 
 Run `go test -race ./internal/connection ./internal/models ./internal/provider`.
+
+The provider TestMain fake also serves historical rate-limit reads, sparse quota
+pushes, token counters, retry advisories and typed quota/model failures. These
+scenarios are synthetic, including quota exhaustion; they do not establish live
+OpenAI billing, real-account quota rejection or host sandbox compatibility.

@@ -8,6 +8,7 @@ import (
 	"maps"
 
 	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/appserver"
+	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/usage"
 	"github.com/arvel-dev/arvel-sdk/protocol"
 )
 
@@ -16,6 +17,7 @@ import (
 type Hooks struct {
 	ForGeneration func(uint64) appserver.PeerOptions
 	Stopped       func(uint64)
+	UsageUpdated  func(protocol.Usage)
 }
 
 // Runtime borrows one manager-owned process. A caller never closes Client itself.
@@ -23,6 +25,9 @@ type Runtime struct {
 	Client     Client
 	Generation uint64
 	Home       string
+	Kind       string
+	Quota      func() usage.QuotaContext
+	ActiveTurn func() func()
 }
 
 // NewWithHooks composes account handling with per-generation semantic routing.
@@ -53,7 +58,8 @@ func (m *Manager) Acquire(ctx context.Context) (Runtime, error) {
 		return Runtime{}, err
 	}
 	m.borrowed = true
-	return Runtime{Client: m.client, Generation: m.generation, Home: m.cfg.home}, nil
+	quota, active := m.quotaRuntime()
+	return Runtime{Client: m.client, Generation: m.generation, Home: m.cfg.home, Kind: m.cfg.kind, Quota: quota, ActiveTurn: active}, nil
 }
 
 // Abort stops only the specified generation. Retiring process cleanup completes
@@ -96,6 +102,8 @@ func (m *Manager) peerOptions() appserver.PeerOptions {
 	if opts.Notifications == nil {
 		opts.Notifications = map[string]appserver.Notification{}
 	}
+	generation := m.generation
+	opts.Notifications["account/rateLimits/updated"] = func(_ context.Context, _ json.RawMessage) { m.quotaEvent(generation) }
 	for method, account := range map[string]appserver.Notification{"account/updated": m.accountEvent, "account/login/completed": m.loginEvent} {
 		semantic := opts.Notifications[method]
 		opts.Notifications[method] = func(ctx context.Context, raw json.RawMessage) {

@@ -68,6 +68,7 @@ type Manager struct {
 	last                          protocol.Status
 	haveLast                      bool
 	catalog                       models.Cache
+	quota                         quotaState
 }
 
 // New validates local configuration without starting a vendor or contacting the network.
@@ -164,7 +165,12 @@ func (m *Manager) status(ctx context.Context, allowStart bool) protocol.Status {
 		}
 	}
 	var response schema.AccountReadResponse
+	accountRevision := m.revision.Load()
 	if err := m.client.Call(ctx, "account/read", schema.AccountReadParams{}, &response); err != nil {
+		m.invalidateQuotaObservation()
+		m.quotaReady(false)
+		m.signalUsage()
+		m.log.Debug("[FIX:quota-account] account unavailable; quota observation revoked")
 		return m.state(protocol.StateError, "Cannot read Codex account")
 	}
 	if m.cfg.kind == "api_key" && !m.keyApplied {
@@ -179,7 +185,12 @@ func (m *Manager) status(ctx context.Context, allowStart bool) protocol.Status {
 			return m.state(protocol.StateNeedsLogin, "Key rejected by Codex")
 		}
 		m.keyApplied = true
+		accountRevision = m.revision.Load()
 		if err := m.client.Call(ctx, "account/read", schema.AccountReadParams{}, &response); err != nil {
+			m.invalidateQuotaObservation()
+			m.quotaReady(false)
+			m.signalUsage()
+			m.log.Debug("[FIX:quota-account] account unavailable; quota observation revoked")
 			return m.state(protocol.StateError, "Cannot read Codex account")
 		}
 	}
@@ -191,14 +202,21 @@ func (m *Manager) status(ctx context.Context, allowStart bool) protocol.Status {
 		return m.status(ctx, true)
 	}
 	if m.identity != string(raw) {
+		if !samePrincipal(m.identity, response.Account) {
+			m.resetQuota()
+		} else {
+			m.invalidateQuotaObservation()
+		}
 		m.identity = string(raw)
 		m.revision.Add(1)
+		accountRevision++
 	}
 	want := "chatgpt"
 	if m.cfg.kind == "api_key" {
 		want = "apiKey"
 	}
 	if response.Account == nil || response.Account.Type != want {
+		m.quotaReady(false)
 		return m.loginStatus(m.state(protocol.StateNeedsLogin, "Sign in to this connection"))
 	}
 	st := m.state(protocol.StateReady, "Signed in with ChatGPT")
@@ -207,6 +225,15 @@ func (m *Manager) status(ctx context.Context, allowStart bool) protocol.Status {
 	} else {
 		st.Account = &protocol.AccountInfo{Plan: response.Account.PlanType, Label: maskedEmail(response.Account.Email)}
 	}
+	if m.revision.Load() != accountRevision {
+		m.invalidateQuotaObservation()
+		m.quotaReady(false)
+		m.signal()
+	} else {
+		m.quotaReady(true)
+		m.refreshQuota(ctx)
+	}
+	m.signalUsage()
 	return m.loginStatus(st)
 }
 
@@ -240,6 +267,7 @@ func (m *Manager) start(ctx context.Context) (protocol.Status, bool) {
 	startCtx, startCancel := context.WithCancel(m.ctx)
 	stop := context.AfterFunc(ctx, startCancel)
 	m.generation++
+	m.resetQuota()
 	c, err := m.deps.start(startCtx, appserver.Options{Path: path, Dir: m.cfg.dataDir, Env: m.cfg.environment(), Secrets: []string{m.cfg.key}, InitializeTimeout: m.deps.timeout, Peer: m.peerOptions()})
 	if !stop() || ctx.Err() != nil {
 		startCancel()
@@ -313,6 +341,7 @@ func (m *Manager) remember(st protocol.Status, notify bool) {
 }
 
 func (m *Manager) reset() {
+	m.resetQuota()
 	m.stopGeneration()
 	m.client = nil
 	m.borrowed = false

@@ -60,6 +60,7 @@ func serveFakeCodex() {
 	}
 	enc := json.NewEncoder(os.Stdout)
 	threadCount, turnCount := 0, 0
+	quotaPercent := int64(38)
 	threadCWD := map[string]string{}
 	type pendingApproval struct {
 		thread, turn string
@@ -123,6 +124,8 @@ func serveFakeCodex() {
 				a = map[string]any{"type": "apiKey"}
 			}
 			reply(m.ID, map[string]any{"account": a, "requiresOpenaiAuth": true})
+		case "account/rateLimits/read":
+			reply(m.ID, map[string]any{"rateLimits": map[string]any{"primary": map[string]any{"usedPercent": quotaPercent, "resetsAt": time.Now().Add(time.Hour).Unix(), "windowDurationMins": 300}, "secondary": nil, "rateLimitReachedType": nil}})
 		case "account/login/start":
 			if m.Params.Type == "apiKey" {
 				account = "apiKey"
@@ -182,7 +185,23 @@ func serveFakeCodex() {
 				os.Exit(85)
 			}
 			event("turn/started", map[string]any{"threadId": thread, "turn": map[string]string{"id": turn, "status": "inProgress"}})
-			if strings.Contains(text, "approve") {
+			if strings.Contains(text, "usage") {
+				event("thread/tokenUsage/updated", map[string]any{"threadId": thread, "turnId": turn, "tokenUsage": map[string]any{"last": map[string]int64{"inputTokens": 20, "outputTokens": 5, "cachedInputTokens": 10, "reasoningOutputTokens": 2, "totalTokens": 25}, "total": map[string]int64{"inputTokens": 200, "outputTokens": 50, "cachedInputTokens": 100, "reasoningOutputTokens": 20, "totalTokens": 250}}})
+			}
+			if strings.Contains(text, "quota") {
+				quotaPercent = 100
+				event("account/rateLimits/updated", map[string]any{"rateLimits": map[string]any{"primary": map[string]any{"usedPercent": 100}, "secondary": nil}})
+				event("turn/completed", map[string]any{"threadId": thread, "turn": map[string]any{"id": turn, "status": "failed", "error": map[string]any{"message": "secret-vendor-canary", "codexErrorInfo": "usageLimitExceeded"}}})
+			} else if strings.Contains(text, "transient") {
+				event("error", map[string]any{"threadId": thread, "turnId": turn, "willRetry": true, "error": map[string]any{"message": "secret-vendor-canary", "codexErrorInfo": "rateLimitExceeded"}})
+				complete(thread, turn, "completed")
+			} else if strings.Contains(text, "model-error") {
+				event("turn/completed", map[string]any{"threadId": thread, "turn": map[string]any{"id": turn, "status": "failed", "error": map[string]any{"message": `{"error":{"code":"model_not_found"}}`, "codexErrorInfo": "other"}}})
+			} else if strings.Contains(text, "push-warning") {
+				quotaPercent = 85
+				event("account/rateLimits/updated", map[string]any{"rateLimits": map[string]any{"primary": map[string]any{"usedPercent": 85}}})
+				complete(thread, turn, "completed")
+			} else if strings.Contains(text, "approve") {
 				method := "item/commandExecution/requestApproval"
 				params := map[string]any{"threadId": thread, "turnId": turn, "itemId": "tool-" + turn, "command": "synthetic-tool", "cwd": threadCWD[thread]}
 				if strings.Contains(text, "file") {
