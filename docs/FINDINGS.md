@@ -536,3 +536,16 @@ keep the private-home smoke separate from the broader model scenarios. The
 filtered smoke also passed without sign-in or a model request. No resulting
 recording is added to the committed fixtures; test temporary state is owned by
 the existing harness. Real host/CLI compatibility remains unverified.
+
+
+G2 native CI initially passed macOS/Linux and exposed two Windows-only test
+assumptions in [run 40677198373](https://github.com/arvel-dev/arvel-plugin-chatgpt/actions/runs/40677198373).
+SDK EnvBuilder.Proxy represents case-insensitive Windows aliases with one
+spelling, so the connection test now compares normalized names and actual proxy,
+loopback-exception and log-control values. Provider transport tests now allocate
+their temporary directory before registering Shutdown cleanup: testing.T's LIFO
+order then stops the owned child before removing its Windows cwd. These are test
+portability fixes; production environment/process behavior and SDK code remain
+unchanged. The existing G0 environment test already uses normalized names.
+Native PR CI, rather than cross-compilation or POSIX directory removal, is the
+Windows regression check.

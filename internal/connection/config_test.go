@@ -40,8 +40,20 @@ func TestConfig_IsolationMatrix(t *testing.T) {
 							t.Fatal("ambient auth leaked")
 						}
 					}
-					if !strings.Contains(env, "HTTPS_PROXY="+c.proxy) || !strings.Contains(env, "RUST_LOG=warn") {
-						t.Fatal("missing proxy or log control")
+					// Windows environment names are case-insensitive; SDK Proxy keeps
+					// one spelling when uppercase/lowercase twins address the same key.
+					values := map[string]string{}
+					for _, entry := range c.environment() {
+						key, value, _ := strings.Cut(entry, "=")
+						values[strings.ToUpper(key)] = value
+					}
+					for _, key := range []string{"HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY"} {
+						if values[key] != c.proxy {
+							t.Errorf("missing proxy: %s", key)
+						}
+					}
+					if values["RUST_LOG"] != "warn" || values["NO_PROXY"] != "localhost,127.0.0.1" {
+						t.Fatal("missing log control or proxy loopback exceptions")
 					}
 					if err := c.prepare(); err != nil {
 						t.Fatal(err)

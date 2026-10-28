@@ -207,6 +207,9 @@ func TestProvider_LoginPushesStatusThroughRealTransport(t *testing.T) {
 			p := provider.New()
 			h := recordingHost{make(chan protocol.Status, 16)}
 			p.(plugin.HostAware).SetHost(h)
+			meta := integrationMeta(t, "chatgpt", true, remote)
+			// Cleanup is LIFO: stop the child before integrationMeta's TempDir
+			// cleanup, because Windows cannot remove a running process's cwd.
 			t.Cleanup(func() {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 				defer cancel()
@@ -214,7 +217,6 @@ func TestProvider_LoginPushesStatusThroughRealTransport(t *testing.T) {
 					t.Error(err)
 				}
 			})
-			meta := integrationMeta(t, "chatgpt", true, remote)
 			if _, err := p.Initialize(context.Background(), meta); err != nil {
 				t.Fatal(err)
 			}
