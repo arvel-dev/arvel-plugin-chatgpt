@@ -92,6 +92,7 @@ baseline and the approval requests Codex emits:
 | Internet: **Yes** | Network allowed inside the sandbox |
 | Internet: **Ask** / **No** | Network off inside the sandbox; hosted web search disabled because it has no supported approval callback |
 | Commands | Codex asks before commands outside its trusted set. The plugin evaluates the exact supplied command; deny takes precedence. A sandbox escalation also checks file-write and network rules before asking the host. |
+| MCP tools | Only assigned stdio/HTTP servers are configured. Native per-tool rules apply allow/ask/deny before execution; Arvel's assigned `arvel` server is allowed. Ask offers **Allow once** or **Reject** for each invocation. |
 
 The plugin never selects an unrestricted sandbox, disables approvals, or saves
 permanent allow rules in Codex configuration. Codex may retry an approved command
@@ -99,22 +100,53 @@ outside its native sandbox; the host permission request describes that scope, an
 Arvel's host sandbox still applies. "Allow for session" uses Codex's native
 conversation-scoped decision and does not transfer to a replacement thread.
 
+MCP startup failures appear in the session feed on its next turn. MCP tool text
+is bounded; supplied environment, argument and header values are redacted from
+displayed output. SSE is unsupported. Raw vendor stderr is omitted from logs.
+
 Limitation: Codex can always read files inside the task folder, so the *Read files: No* rule cannot be enforced with this provider. Arvel warns you about this when you assign it.
 
 ## Skills and MCP servers
 
-Host-delivered skills, MCP servers, subagents and media prompts are not implemented
-yet. Nonempty requests for these capabilities fail explicitly. Agent sessions use
+Host-delivered MCP servers support stdio and HTTP with native per-tool rules.
+Managed skills are copied through the pinned SDK and support automatic or manual
+invocation. Subagents inherit task instructions and permissions, with a bounded native
+concurrency limit. Model and effort settings are defaults that native spawn
+requests can override. Child output and approvals stay attributed to the child;
+parent completion and cancellation stop remaining children.
+Image prompts accept
+PNG, JPEG and GIF data for models that support images: up to 2 MiB of decoded
+image data per prompt, 16 images and 40 million pixels per image. Images stay in
+memory; supplied image URLs are never fetched. Audio and embedded resource
+prompts remain unsupported. Agent sessions use
 a private Codex home, exclude project `.codex` configuration through an untrusted
 project override, and disable inherited hooks, plugins and notifications. Inherited
 MCP definitions, custom model providers and managed/unknown configuration layers
 are rejected before a thread starts or resumes. Personal or project skill discovery
-outside that configuration mechanism remains a vendor limitation; host skill
-materialization belongs to the later tools milestone.
+outside that configuration mechanism remains available according to Codex behavior.
 
-Unsupported permission-profile requests receive an empty grant, and MCP elicitation
-requests are declined. The plugin does not enable experimental producers to obtain
-these capabilities.
+Arvel maintains a separate skill catalog for each provider; spaces and roles
+select from that provider's catalog. Turning off an Arvel copy affects subsequent
+sessions, with existing copies retained until their tasks close. It does not
+turn off an independently available external/global original or erase instructions
+already present in conversation history. Unsupported global exclusion has no
+working toggle. Source folders and other live copies are preserved. Different
+simultaneous managed selections require separate working directories; this
+provider rejects conflicting selections in a shared directory.
+
+On request, Arvel can discover MCP definitions in your default Codex
+`config.toml` and skills in `~/.agents/skills` or the requested projects'
+`.agents/skills` directories. Discovery is read-only: it does not start Codex,
+sign in, install or enable definitions. Literal environment/header secrets are
+returned as markers; environment references are returned by name. Definitions
+with detected credentials in arguments or URLs are omitted. Symlinked sources
+are rejected, and a blocked or malformed source returns an error. The default
+Codex configuration directory must be beneath your user home. Host filesystem
+permissions still apply; discovery adds no global access to personal skill roots.
+
+Unsupported permission-profile requests receive an empty grant. Only recorded
+native MCP tool-approval forms reach Arvel; other forms and URL elicitations are
+declined. The plugin does not enable experimental producers for these capabilities.
 
 ## Usage and limits
 
@@ -162,7 +194,7 @@ Independent open-source project, not affiliated with or endorsed by OpenAI. "Ope
 
 ## Development
 
-Requires Go 1.27.2 or newer for arvel-sdk v0.1.2. Connection status, browser and
+Requires Go 1.27.2 or newer for arvel-sdk v0.1.3. Connection status, browser and
 device-code sign-in, isolated API-key configuration and model discovery are
 implemented, together with streaming sessions, command/file approvals, cancellation
 and recovery. Usage mapping, host tool delivery and release conformance remain

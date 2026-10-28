@@ -62,8 +62,11 @@ func serveFakeCodex() {
 	threadCount, turnCount := 0, 0
 	quotaPercent := int64(38)
 	threadCWD := map[string]string{}
+	childParent := map[string]string{}
+	threadMCP := map[string]map[string]any{}
 	type pendingApproval struct {
 		thread, turn string
+		mcpServer    string
 		answered     bool
 	}
 	pending := map[string]*pendingApproval{}
@@ -78,7 +81,9 @@ func serveFakeCodex() {
 			ID     json.RawMessage `json:"id"`
 			Method string          `json:"method"`
 			Result struct {
-				Decision string `json:"decision"`
+				Decision string         `json:"decision"`
+				Action   string         `json:"action"`
+				Content  map[string]any `json:"content"`
 			} `json:"result"`
 			Params struct {
 				Type     string         `json:"type"`
@@ -86,11 +91,16 @@ func serveFakeCodex() {
 				ThreadID string         `json:"threadId"`
 				TurnID   string         `json:"turnId"`
 				CWD      string         `json:"cwd"`
+				CWDs     []string       `json:"cwds"`
 				Model    *string        `json:"model"`
 				Effort   *string        `json:"effort"`
 				Config   map[string]any `json:"config"`
 				Input    []struct {
 					Text string `json:"text"`
+					Type string `json:"type"`
+					URL  string `json:"url"`
+					Name string `json:"name"`
+					Path string `json:"path"`
 				} `json:"input"`
 			} `json:"params"`
 		}
@@ -108,6 +118,25 @@ func serveFakeCodex() {
 				os.Exit(98)
 			}
 			p.answered = true
+			if p.mcpServer != "" {
+				if m.Result.Action == "cancel" {
+					continue
+				}
+				item := map[string]any{"id": "mcp-" + p.turn, "type": "mcpToolCall", "server": p.mcpServer, "tool": "echo", "status": "failed", "result": nil}
+				if m.Result.Action == "accept" {
+					if m.Result.Content == nil || len(m.Result.Content) != 0 {
+						os.Exit(102)
+					}
+					item["status"] = "completed"
+					item["result"] = map[string]any{"content": []any{map[string]string{"type": "text", "text": "MCP result owned-secret"}}}
+				}
+				event("item/completed", map[string]any{"threadId": p.thread, "turnId": p.turn, "item": item})
+				for _, delta := range []string{"tool says owned-", "secret"} {
+					event("item/agentMessage/delta", map[string]string{"threadId": p.thread, "turnId": p.turn, "itemId": "message", "delta": delta})
+				}
+				complete(p.thread, p.turn, "completed")
+				continue
+			}
 			if m.Result.Decision == "cancel" {
 				continue
 			}
@@ -154,6 +183,34 @@ func serveFakeCodex() {
 			reply(m.ID, json.RawMessage(catalog))
 		case "configRequirements/read":
 			reply(m.ID, map[string]any{"requirements": nil})
+		case "windowsSandbox/readiness":
+			reply(m.ID, map[string]string{"status": "ready"})
+		case "skills/list":
+			data := []any{}
+			for _, cwd := range m.Params.CWDs {
+				discovered := []any{}
+				root := filepath.Join(cwd, ".agents", "skills")
+				entries, err := os.ReadDir(root)
+				if err != nil && !os.IsNotExist(err) {
+					os.Exit(105)
+				}
+				for _, entry := range entries {
+					if !entry.IsDir() {
+						continue
+					}
+					path := filepath.Join(root, entry.Name(), "SKILL.md")
+					body, err := os.ReadFile(path)
+					if err != nil {
+						continue
+					}
+					if !strings.Contains(strings.ReplaceAll(string(body), "\r\n", "\n"), "name: "+entry.Name()+"\n") {
+						os.Exit(106)
+					}
+					discovered = append(discovered, map[string]any{"name": entry.Name(), "path": path, "enabled": true})
+				}
+				data = append(data, map[string]any{"cwd": cwd, "skills": discovered, "errors": []any{}})
+			}
+			reply(m.ID, map[string]any{"data": data})
 		case "config/read":
 			reply(m.ID, map[string]any{"config": map[string]any{}, "origins": map[string]any{}})
 		case "thread/start", "thread/resume":
@@ -167,7 +224,25 @@ func serveFakeCodex() {
 				event("thread/started", map[string]any{"thread": map[string]string{"id": id}})
 			}
 			threadCWD[id] = m.Params.CWD
+			if servers, ok := m.Params.Config["mcp_servers"].(map[string]any); ok {
+				threadMCP[id] = servers
+				for name, raw := range servers {
+					entry := raw.(map[string]any)
+					if entry["default_tools_approval_mode"] == nil {
+						os.Exit(103)
+					}
+					if entry["command"] == "missing-fixture" {
+						event("mcpServer/startupStatus/updated", map[string]any{"threadId": nil, "name": name, "status": "failed", "error": "unattributed secret"})
+						for range 2 {
+							event("mcpServer/startupStatus/updated", map[string]string{"threadId": id, "name": name, "status": "failed", "error": "owned-secret"})
+						}
+					}
+				}
+			}
 			reply(m.ID, map[string]any{"thread": map[string]string{"id": id}, "model": "gpt-6.1-sol"})
+		case "thread/read":
+			id := m.Params.ThreadID
+			reply(m.ID, map[string]any{"thread": map[string]any{"id": id, "cwd": threadCWD[id], "source": map[string]any{"subAgent": map[string]any{"thread_spawn": map[string]any{"parent_thread_id": childParent[id], "depth": 1}}}}})
 		case "thread/unsubscribe":
 			reply(m.ID, map[string]string{"status": "unsubscribed"})
 		case "turn/start":
@@ -178,6 +253,37 @@ func serveFakeCodex() {
 			for _, input := range m.Params.Input {
 				text += input.Text
 			}
+			if strings.Contains(text, "expect-image") {
+				images := 0
+				for _, input := range m.Params.Input {
+					if input.Type == "image" && strings.HasPrefix(input.URL, "data:image/png;base64,") {
+						images++
+					}
+				}
+				if images != 1 {
+					os.Exit(101)
+				}
+			}
+			if strings.Contains(text, "expect-skill") {
+				found := 0
+				for _, input := range m.Params.Input {
+					if input.Type != "skill" {
+						continue
+					}
+					body, err := os.ReadFile(input.Path)
+					if err != nil || !strings.Contains(string(body), "OWNED_SKILL_BODY") || input.Name == "" {
+						os.Exit(107)
+					}
+					metadata, err := os.ReadFile(filepath.Join(filepath.Dir(input.Path), "agents", "openai.yaml"))
+					if err != nil || !strings.Contains(string(metadata), "allow_implicit_invocation: false") {
+						os.Exit(108)
+					}
+					found++
+				}
+				if found != 1 {
+					os.Exit(109)
+				}
+			}
 			if strings.Contains(text, "expect high") && (m.Params.Effort == nil || *m.Params.Effort != "high") {
 				os.Exit(100)
 			}
@@ -185,7 +291,46 @@ func serveFakeCodex() {
 				os.Exit(85)
 			}
 			event("turn/started", map[string]any{"threadId": thread, "turn": map[string]string{"id": turn, "status": "inProgress"}})
-			if strings.Contains(text, "usage") {
+			if strings.Contains(text, "key-output") {
+				for _, delta := range []string{"sk-integration-", "canary"} {
+					event("item/agentMessage/delta", map[string]string{"threadId": thread, "turnId": turn, "itemId": "m", "delta": delta})
+				}
+				complete(thread, turn, "completed")
+				reply(m.ID, map[string]any{"turn": map[string]string{"id": turn}})
+				continue
+			}
+			if strings.Contains(text, "child-agent") {
+				child := "child-" + turn
+				childParent[child] = thread
+				threadCWD[child] = threadCWD[thread]
+				event("turn/started", map[string]any{"threadId": child, "turn": map[string]string{"id": "ct-" + turn, "status": "inProgress"}})
+				event("item/agentMessage/delta", map[string]string{"threadId": child, "turnId": "ct-" + turn, "itemId": "cm", "delta": "early child output"})
+				event("item/started", map[string]any{"threadId": thread, "turnId": turn, "item": map[string]string{"type": "subAgentActivity", "id": "spawn-" + turn, "agentThreadId": child, "agentPath": "owned-child", "kind": "started"}})
+				if strings.Contains(text, "approve") {
+					id := "approval-ct-" + turn
+					pending[id] = &pendingApproval{thread: child, turn: "ct-" + turn}
+					_ = enc.Encode(map[string]any{"id": id, "method": "item/commandExecution/requestApproval", "params": map[string]any{"threadId": child, "turnId": "ct-" + turn, "itemId": "child-tool", "command": "synthetic-child-tool", "cwd": threadCWD[thread]}})
+				} else {
+					complete(child, "ct-"+turn, "completed")
+				}
+				if !strings.Contains(text, "wait") {
+					complete(thread, turn, "completed")
+				}
+				reply(m.ID, map[string]any{"turn": map[string]string{"id": turn, "status": "inProgress"}})
+				continue
+			}
+			if strings.Contains(text, "mcp-ask") {
+				servers := threadMCP[thread]
+				if len(servers) != 1 {
+					os.Exit(104)
+				}
+				for name := range servers {
+					event("item/started", map[string]any{"threadId": thread, "turnId": turn, "item": map[string]string{"type": "mcpToolCall", "id": "mcp-" + turn, "server": name, "tool": "echo", "status": "inProgress"}})
+					id := "approval-" + turn
+					pending[id] = &pendingApproval{thread: thread, turn: turn, mcpServer: name}
+					_ = enc.Encode(map[string]any{"id": id, "method": "mcpServer/elicitation/request", "params": map[string]any{"threadId": thread, "turnId": turn, "serverName": name, "mode": "form", "message": "Permit owned-secret?", "_meta": map[string]string{"codex_approval_kind": "mcp_tool_call"}, "requestedSchema": map[string]any{"type": "object", "properties": map[string]any{}}}})
+				}
+			} else if strings.Contains(text, "usage") {
 				event("thread/tokenUsage/updated", map[string]any{"threadId": thread, "turnId": turn, "tokenUsage": map[string]any{"last": map[string]int64{"inputTokens": 20, "outputTokens": 5, "cachedInputTokens": 10, "reasoningOutputTokens": 2, "totalTokens": 25}, "total": map[string]int64{"inputTokens": 200, "outputTokens": 50, "cachedInputTokens": 100, "reasoningOutputTokens": 20, "totalTokens": 250}}})
 			}
 			if strings.Contains(text, "quota") {
@@ -211,7 +356,7 @@ func serveFakeCodex() {
 				id := "approval-" + turn
 				pending[id] = &pendingApproval{thread: thread, turn: turn}
 				_ = enc.Encode(map[string]any{"id": id, "method": method, "params": params})
-			} else if !strings.Contains(text, "wait") {
+			} else if !strings.Contains(text, "wait") && !strings.Contains(text, "mcp-ask") {
 				event("item/agentMessage/delta", map[string]string{"threadId": thread, "turnId": turn, "itemId": "message", "delta": "synthetic response"})
 				event("turn/diff/updated", map[string]string{"threadId": thread, "turnId": turn, "diff": "synthetic diff"})
 				complete(thread, turn, "completed")

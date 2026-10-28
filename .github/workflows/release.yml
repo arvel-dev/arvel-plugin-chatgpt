@@ -26,7 +26,7 @@ jobs:
         env:
           CGO_ENABLED: '0'
       - name: Install the pinned checker
-        run: go install github.com/arvel-dev/arvel-sdk/cmd/arvel-plugin-check@v0.1.2
+        run: go install github.com/arvel-dev/arvel-sdk/cmd/arvel-plugin-check@v0.1.3
       - name: Release conformance
         run: arvel-plugin-check --level release --manifest arvel.json --scenarios conformance -- ./bin/arvel-plugin-chatgpt
       - name: Extract required release notes

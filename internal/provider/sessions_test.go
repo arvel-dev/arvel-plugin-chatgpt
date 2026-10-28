@@ -19,11 +19,15 @@ import (
 )
 
 type sdkHost struct {
-	peer    *jsonrpc.Peer
-	ctx     context.Context
-	updates chan json.RawMessage
-	usages  chan protocol.Usage
-	cwd     string
+	peer     *jsonrpc.Peer
+	ctx      context.Context
+	updates  chan json.RawMessage
+	usages   chan protocol.Usage
+	cwd      string
+	images   bool
+	mcpHTTP  bool
+	children bool
+	skills   *protocol.SkillsInfo
 }
 
 func newSDKHost(t *testing.T, handler func(context.Context, json.RawMessage) (any, error), options ...plugin.Option) *sdkHost {
@@ -94,6 +98,14 @@ func newSDKHost(t *testing.T, handler func(context.Context, json.RawMessage) (an
 	if err := h.peer.Call(h.ctx, protocol.MethodInitialize, map[string]any{"protocolVersion": 1, "_meta": protocol.WithMeta(nil, meta)}, &initialized); err != nil {
 		t.Fatal(err)
 	}
+	h.images = initialized.AgentCapabilities.PromptCapabilities.Image
+	h.mcpHTTP = initialized.AgentCapabilities.McpCapabilities.Http
+	initMeta, ok, err := protocol.MetaFrom[protocol.InitResultMeta](initialized.Meta)
+	if err != nil || !ok {
+		t.Fatal("SDK initialize metadata missing")
+	}
+	h.skills = initMeta.Skills
+	h.children = initMeta.Has(protocol.FeatureSubagents)
 	return h
 }
 

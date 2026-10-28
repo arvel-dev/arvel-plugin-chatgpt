@@ -62,7 +62,7 @@ func TestProvider_DoesNotAdvertiseUnimplementedFeatures(t *testing.T) {
 	p := provider.New()
 	t.Cleanup(func() { _ = p.Shutdown(context.Background()) })
 	f, err := p.Initialize(context.Background(), protocol.InitMeta{DataDir: t.TempDir(), Connection: protocol.ConnectionInfo{Kind: "chatgpt"}})
-	if err != nil || !f.LoadSession || f.Subagents || f.PromptImage || f.Skills != nil || f.MCPHTTP || f.MCPSSE {
+	if err != nil || !f.LoadSession || !f.Subagents || !f.PromptImage || f.Skills == nil || !f.MCPHTTP || f.MCPSSE {
 		t.Fatalf("features: %+v, %v", f, err)
 	}
 	if s, err := p.LoadSession(context.Background(), plugin.LoadParams{}); s != nil || err == nil {

@@ -47,7 +47,8 @@ func (s *stderrLines) emit() {
 	if s.dropping {
 		s.log.Debug("app-server stderr line omitted")
 	} else if len(s.buf) > 0 {
-		s.log.Debug("app-server stderr", "text", string(s.buf))
+		// MCP children may print session secrets unknown to the process logger.
+		s.log.Debug("app-server stderr content omitted", "bytes", len(s.buf))
 	}
 	s.buf = nil
 	s.dropping = false

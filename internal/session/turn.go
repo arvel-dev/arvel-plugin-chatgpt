@@ -17,6 +17,7 @@ import (
 
 func promptInput(blocks []acp.ContentBlock) ([]schema.UserInput, error) {
 	input := make([]schema.UserInput, 0, len(blocks))
+	imageBytes, images := 0, 0
 	for _, block := range blocks {
 		if block.Validate() != nil {
 			return nil, setupError("Invalid prompt content")
@@ -26,8 +27,19 @@ func promptInput(blocks []acp.ContentBlock) ([]schema.UserInput, error) {
 			input = append(input, schema.UserInput{Type: "text", Text: block.Text.Text})
 		case block.ResourceLink != nil:
 			input = append(input, schema.UserInput{Type: "text", Text: block.ResourceLink.Name + ": " + block.ResourceLink.Uri})
+		case block.Image != nil:
+			item, size, err := imageInput(*block.Image)
+			if err != nil {
+				return nil, err
+			}
+			imageBytes += size
+			images++
+			if imageBytes > maxPromptImageBytes || images > maxPromptImages {
+				return nil, setupError("Prompt image size or count limit exceeded")
+			}
+			input = append(input, item)
 		default:
-			return nil, setupError("Image, audio and embedded resource prompts are not supported yet")
+			return nil, setupError("Audio and embedded resource prompts are not supported yet")
 		}
 	}
 	if len(input) == 0 {
@@ -74,6 +86,11 @@ func (s *Session) Prompt(ctx context.Context, blocks []acp.ContentBlock, out plu
 			s.sub.Close()
 			s.sub = nil
 		}
+		if s.closed && s.skillRelease != nil {
+			release := s.skillRelease
+			s.skillRelease = nil
+			release()
+		}
 		close(active.done)
 		s.mu.Unlock()
 	}()
@@ -97,10 +114,25 @@ type nextEvent struct {
 func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plugin.Output, active *activeTurn) (result plugin.TurnResult, resultErr error) {
 	s.mu.Lock()
 	runtime, sub := s.runtime, s.sub
+	cfg := s.config
+	input = selectedSkills(input, s.params.Meta.Skills, s.skillCatalog)
 	thread, model, effort := s.snapshot.VendorID, s.snapshot.Model, s.snapshot.Effort
 	previousTurn := s.snapshot.LastTurn
+	imageCount := 0
+	for _, item := range input {
+		if item.Type == "image" {
+			imageCount++
+			if !imageModel(s.catalog, model) {
+				s.mu.Unlock()
+				return plugin.TurnResult{}, setupError("Selected model does not support image input")
+			}
+		}
+	}
 	s.snapshot.Empty = false // Once delivery is attempted, history loss is ambiguous.
 	s.mu.Unlock()
+	if imageCount > 0 {
+		s.log.Debug("turn image input prepared", "images", imageCount)
+	}
 	if runtime.ActiveTurn != nil {
 		release := runtime.ActiveTurn()
 		defer release()
@@ -126,15 +158,22 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 		return turnID == id
 	}
 	currentTurn := func() string { turnMu.Lock(); defer turnMu.Unlock(); return turnID }
+	mapping := mapper.New()
+	mapping.ConfigureMCP(cfg.mcpNames, cfg.clean)
 	end, err := sub.BeginTurn(func(requestContext context.Context, method string, raw json.RawMessage) (any, error) {
 		return s.approve(requestContext, active.permissionContext, method, raw, out, runtime, sub, thread, bind)
-	})
+	}, active.permissionContext)
 	if err != nil {
 		return plugin.TurnResult{}, setupError("Session event stream is unavailable")
 	}
 	defer end()
+	tree := newChildTree(s, runtime, sub, thread, cfg, out, mapping, active.permissionContext)
+	if err := tree.begin(); err != nil {
+		return plugin.TurnResult{}, setupError("Cannot attach subagent routing")
+	}
 	replies := make(chan startReply, 1)
 	events := make(chan nextEvent, 1)
+	eventAck := make(chan struct{})
 	params := schema.TurnStartParams{ThreadID: thread, Input: input, Model: &model}
 	if effort != "" && effort != "auto" {
 		explicit := string(effort)
@@ -156,9 +195,13 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 			if err != nil {
 				return
 			}
+			select {
+			case <-eventAck:
+			case <-work.Done():
+				return
+			}
 		}
 	})
-	mapping := mapper.New()
 	write := func(updates []acp.SessionUpdate) error {
 		for _, update := range updates {
 			if err := out.Update(update, nil); err != nil {
@@ -199,8 +242,37 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 		_ = s.backend.Abort(cleanup, runtime.Generation)
 	}
 	cancelled := func() bool { s.mu.Lock(); defer s.mu.Unlock(); return active.cancelled }
+	needAck := false
+	childrenDraining := false
+	childrenDone := make(chan error, 1)
 	for {
-		if terminal != nil && started {
+		if needAck {
+			select {
+			case eventAck <- struct{}{}:
+			case <-work.Done():
+			}
+			needAck = false
+		}
+		if terminal != nil && started && tree.active() && !childrenDraining {
+			childrenDraining = true
+			active.cancelPermissions()
+			if timer == nil {
+				timer = time.NewTimer(controlTimeout)
+				deadline = timer.C
+			}
+			targets := tree.targets()
+			workers.Go(func() {
+				cleanup, cancel := context.WithTimeout(work, controlTimeout)
+				defer cancel()
+				childrenDone <- interruptChildren(cleanup, runtime, targets)
+			})
+		}
+		if terminal != nil && started && !tree.active() {
+			active.cancelPermissions()
+			if err := tree.finish(); err != nil {
+				abort()
+				return plugin.TurnResult{}, err
+			}
 			if err := write(mapping.Finish()); err != nil {
 				markBroken()
 				return plugin.TurnResult{}, err
@@ -211,6 +283,9 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 			s.mu.Unlock()
 			if ctx.Err() != nil {
 				return plugin.TurnResult{}, ctx.Err()
+			}
+			if cancelled() {
+				return plugin.TurnResult{StopReason: acp.StopReasonCancelled}, nil
 			}
 			switch terminal.Status {
 			case "completed":
@@ -240,10 +315,14 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 				until := active.deadline
 				s.mu.Unlock()
 				id := currentTurn()
+				targets := tree.targets()
 				workers.Go(func() {
 					interruptContext, cancel := context.WithDeadline(work, until)
 					defer cancel()
-					err := runtime.Client.WaitResponses(interruptContext, thread, id)
+					err := interruptChildren(interruptContext, runtime, targets)
+					if err == nil {
+						err = runtime.Client.WaitResponses(interruptContext, thread, id)
+					}
 					if err == nil {
 						err = runtime.Client.Call(interruptContext, "turn/interrupt", schema.TurnInterruptParams{ThreadID: thread, TurnID: id}, &struct{}{})
 					}
@@ -266,6 +345,7 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 			}
 			started = true
 		case next := <-events:
+			needAck = next.err == nil
 			if next.err != nil {
 				markBroken()
 				if cancelled() {
@@ -281,12 +361,52 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 				abort()
 				return plugin.TurnResult{}, setupError("Invalid Codex session event")
 			}
+			if identity.ThreadID == thread && previousTurn != "" && identity.TurnID == previousTurn {
+				continue
+			}
+			if handled, err := tree.push(active.permissionContext, next.event); err != nil {
+				abort()
+				if cancelled() {
+					return plugin.TurnResult{StopReason: acp.StopReasonCancelled}, nil
+				}
+				return plugin.TurnResult{}, setupError("Invalid subagent session output")
+			} else if handled {
+				continue
+			}
 			if next.event.Method == "thread/started" || next.event.Method == "thread/status/changed" {
 				continue
 			}
 			if identity.ThreadID != thread {
 				abort()
 				return plugin.TurnResult{}, setupError("Codex session identity changed")
+			}
+			if next.event.Method == "mcpServer/startupStatus/updated" {
+				var status schema.MCPStartup
+				if json.Unmarshal(next.event.Params, &status) != nil {
+					abort()
+					return plugin.TurnResult{}, setupError("Invalid MCP startup event")
+				}
+				if _, assigned := cfg.mcpNames[status.Name]; !assigned || (status.Status != "failed" && status.Status != "cancelled") {
+					continue
+				}
+				s.mu.Lock()
+				seen := s.mcpStartupFailures[status.Name]
+				s.mcpStartupFailures[status.Name] = true
+				s.mu.Unlock()
+				if seen {
+					continue
+				}
+				s.log.Warn("assigned MCP server startup failed")
+				updates, err := mapping.Push(next.event.Method, next.event.Params)
+				if err != nil {
+					abort()
+					return plugin.TurnResult{}, setupError("Invalid MCP startup output")
+				}
+				if err = write(updates); err != nil {
+					abort()
+					return plugin.TurnResult{}, err
+				}
+				continue
 			}
 			if next.event.Method == "turn/started" || next.event.Method == "turn/completed" {
 				var lifecycle schema.TurnEvent
@@ -334,6 +454,11 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 				abort()
 				return plugin.TurnResult{}, err
 			}
+		case err := <-childrenDone:
+			if err != nil && tree.active() {
+				abort()
+				return plugin.TurnResult{}, setupError("Cannot stop active subagents")
+			}
 		case err := <-interruptDone:
 			if err != nil {
 				abort()
@@ -345,6 +470,9 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 			s.Cancel()
 		case <-deadline:
 			abort()
+			if childrenDraining && !cancelled() {
+				return plugin.TurnResult{}, setupError("Subagents did not stop before the session deadline")
+			}
 			if ctx.Err() != nil {
 				return plugin.TurnResult{}, ctx.Err()
 			}

@@ -17,6 +17,9 @@ import (
 )
 
 func (s *Session) approve(ctx, permissionContext context.Context, method string, raw json.RawMessage, out plugin.Output, runtime connection.Runtime, sub *Subscription, thread string, bind func(string) bool) (any, error) {
+	if method == "mcpServer/elicitation/request" {
+		return s.approveMCP(ctx, permissionContext, raw, out, thread, bind)
+	}
 	var identity schema.ApprovalIdentity
 	if json.Unmarshal(raw, &identity) != nil || identity.ThreadID != thread || identity.ItemID == "" || !bind(identity.TurnID) {
 		return denial(method), nil
@@ -113,6 +116,21 @@ func (s *Session) approve(ctx, permissionContext context.Context, method string,
 	}
 	if decision == protocol.PermissionLevelAllow {
 		return schema.DecisionResponse{Decision: "accept"}, nil
+	}
+	// Evaluate original values above; sanitize only the host's display payload.
+	if request.ToolCall.Title != nil {
+		title := cfg.clean.String(*request.ToolCall.Title)
+		request.ToolCall.Title = &title
+	}
+	request.Meta.Command = cfg.clean.String(request.Meta.Command)
+	for i := range request.Meta.Hosts {
+		request.Meta.Hosts[i] = cfg.clean.String(request.Meta.Hosts[i])
+	}
+	for i := range request.Meta.Paths {
+		request.Meta.Paths[i] = cfg.clean.String(request.Meta.Paths[i])
+	}
+	for i := range request.ToolCall.Locations {
+		request.ToolCall.Locations[i].Path = cfg.clean.String(request.ToolCall.Locations[i].Path)
 	}
 	answer, err := out.RequestPermission(ctx, request)
 	if ctx.Err() != nil || answer.Cancelled {

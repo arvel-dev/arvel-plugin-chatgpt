@@ -4,6 +4,7 @@ package appserver
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -14,6 +15,18 @@ import (
 )
 
 func TestMain(m *testing.M) {
+	if len(os.Args) == 2 && os.Args[1] == "--version" {
+		fmt.Println("codex-cli 0.164.0")
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "arvel-owned-argv" {
+		_ = json.NewEncoder(os.Stdout).Encode(os.Args[2:])
+		return
+	}
+	if len(os.Args) == 2 && os.Args[1] == "arvel-owned-child" {
+		time.Sleep(time.Hour)
+		return
+	}
 	if mode := os.Getenv("APP_SERVER_FAKE"); mode != "" {
 		fakeVendor(mode)
 		return
@@ -28,6 +41,17 @@ func fakeVendor(mode string) {
 	out := json.NewEncoder(os.Stdout)
 	initialized := false
 	var delayed json.RawMessage
+	var child *os.Process
+	if mode == "windows-tree" {
+		binary, err := os.Executable()
+		if err != nil {
+			os.Exit(94)
+		}
+		child, err = os.StartProcess(binary, []string{binary, "arvel-owned-child"}, &os.ProcAttr{Env: os.Environ()})
+		if err != nil {
+			os.Exit(95)
+		}
+	}
 	for scan.Scan() {
 		var m struct {
 			ID     json.RawMessage `json:"id"`
@@ -55,7 +79,15 @@ func fakeVendor(mode string) {
 			_ = out.Encode(map[string]any{"id": m.ID, "result": map[string]any{"userAgent": "fakevendor", "codexHome": "/scratch", "platformFamily": "test", "platformOs": "test"}})
 		case "initialized":
 			initialized = true
+		case "windowsSandbox/readiness":
+			_ = out.Encode(map[string]any{"id": m.ID, "result": map[string]string{"status": "ready"}})
+		case "skills/list":
+			_ = out.Encode(map[string]any{"id": m.ID, "result": map[string]any{"data": []any{}}})
 		case "account/read":
+			if child != nil {
+				_ = out.Encode(map[string]any{"id": m.ID, "result": map[string]int{"childPid": child.Pid}})
+				continue
+			}
 			if mode == "environment" {
 				_ = out.Encode(map[string]any{"id": m.ID, "result": map[string]any{"openai": os.Getenv("OPENAI_API_KEY") != "", "codex": os.Getenv("CODEX_API_KEY") != "", "ssh": os.Getenv("SSH_AUTH_SOCK") != "", "github": os.Getenv("GH_TOKEN") != "", "rust": os.Getenv("RUST_LOG"), "home": os.Getenv("CODEX_HOME") != ""}})
 				continue
@@ -115,6 +147,28 @@ func TestClient_HandshakeCallsAndIdempotentClose(t *testing.T) {
 	case <-c.Done():
 	default:
 		t.Fatal("cleanup not complete")
+	}
+}
+
+func TestClient_StableCatalogAndReadinessReachVendor(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	client, err := Start(ctx, fakeOptions(t, "normal"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close(ctx)
+	var readiness struct {
+		Status string `json:"status"`
+	}
+	if err := client.Call(ctx, "windowsSandbox/readiness", nil, &readiness); err != nil || readiness.Status != "ready" {
+		t.Fatalf("readiness: %+v %v", readiness, err)
+	}
+	var catalog struct {
+		Data []any `json:"data"`
+	}
+	if err := client.Call(ctx, "skills/list", map[string]any{"cwds": []string{}, "forceReload": true}, &catalog); err != nil || catalog.Data == nil {
+		t.Fatalf("skills: %+v %v", catalog, err)
 	}
 }
 func TestClient_CallCancellationDoesNotKillProcess(t *testing.T) {

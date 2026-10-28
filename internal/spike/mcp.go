@@ -13,7 +13,7 @@ import (
 
 // ServeMCP is a fixed development fixture server, never a production service.
 // Its initialize/tools/list envelope follows the SDK checker's MCP test stub.
-func ServeMCP(ctx context.Context, input io.Reader, output io.Writer) error {
+func ServeMCP(ctx context.Context, input io.Reader, output io.Writer, observe ...func() error) error {
 	if closer, ok := input.(io.Closer); ok {
 		stop := context.AfterFunc(ctx, func() { _ = closer.Close() })
 		defer stop()
@@ -46,6 +46,11 @@ func ServeMCP(ctx context.Context, input io.Reader, output io.Writer) error {
 			}
 			if json.Unmarshal(req.Params, &params) != nil || params.Name != "probe_echo" {
 				return errors.New("unknown MCP fixture tool")
+			}
+			for _, callback := range observe {
+				if err := callback(); err != nil {
+					return err
+				}
 			}
 			result = map[string]any{"content": []any{map[string]any{"type": "text", "text": "MCP_PONG"}}}
 		case "ping":

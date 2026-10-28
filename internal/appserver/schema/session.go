@@ -91,17 +91,21 @@ type PlanStep struct {
 
 // Item is the stable parent-feed item subset; unknown item kinds are ignored.
 type Item struct {
-	ID       string       `json:"id"`
-	Type     string       `json:"type"`
-	Text     string       `json:"text,omitempty"`
-	Command  string       `json:"command,omitempty"`
-	Status   string       `json:"status,omitempty"`
-	ExitCode *int         `json:"exitCode,omitempty"`
-	Output   *string      `json:"aggregatedOutput,omitempty"`
-	Changes  []FileChange `json:"changes,omitempty"`
-	Server   string       `json:"server,omitempty"`
-	Tool     string       `json:"tool,omitempty"`
-	Query    string       `json:"query,omitempty"`
+	ID            string          `json:"id"`
+	Type          string          `json:"type"`
+	Text          string          `json:"text,omitempty"`
+	Command       string          `json:"command,omitempty"`
+	Status        string          `json:"status,omitempty"`
+	ExitCode      *int            `json:"exitCode,omitempty"`
+	Output        *string         `json:"aggregatedOutput,omitempty"`
+	Changes       []FileChange    `json:"changes,omitempty"`
+	Server        string          `json:"server,omitempty"`
+	Tool          string          `json:"tool,omitempty"`
+	Query         string          `json:"query,omitempty"`
+	Result        json.RawMessage `json:"result,omitempty"`
+	AgentThreadID string          `json:"agentThreadId,omitempty"`
+	AgentPath     string          `json:"agentPath,omitempty"`
+	Kind          string          `json:"kind,omitempty"`
 }
 
 // FileChange contains the observed path/diff and change kind.

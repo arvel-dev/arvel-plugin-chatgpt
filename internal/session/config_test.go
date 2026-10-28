@@ -54,6 +54,10 @@ func TestConfig_StartResumePreserveHostPolicy(t *testing.T) {
 		if cfg.start.Config["features"].(map[string]any)["plugins"] != false || cfg.start.Config["features"].(map[string]any)["hooks"] != false || len(cfg.start.Config["notify"].([]any)) != 0 {
 			t.Fatal("missing execution suppression")
 		}
+		features := cfg.start.Config["features"].(map[string]any)
+		if features["multi_agent"] != false || features["multi_agent_v2"] != false || cfg.start.Config["agents"].(map[string]any)["enabled"] != false {
+			t.Fatal("unassigned native delegation enabled")
+		}
 		if cfg.start.Config["projects"].(map[string]any)[cfg.start.CWD].(map[string]any)["trust_level"] != "untrusted" {
 			t.Fatal("project trust not forced")
 		}
@@ -69,8 +73,6 @@ func TestConfig_RejectsUnsupportedInputsAndPrivateDirectoryOverlap(t *testing.T)
 		name   string
 		params plugin.SessionParams
 	}{
-		{"skills", plugin.SessionParams{CWD: cwd, Meta: protocol.SessionMeta{Skills: []protocol.SkillRef{{Name: "s", Path: cwd, Invocation: protocol.SkillInvocation("auto")}}}}},
-		{"subagents", plugin.SessionParams{CWD: cwd, Meta: protocol.SessionMeta{Subagents: &protocol.Subagents{Enabled: true}}}},
 		{"cost", plugin.SessionParams{CWD: cwd, Meta: protocol.SessionMeta{Budget: &protocol.Budget{MaxUSD: 1}}}},
 		{"relative", plugin.SessionParams{CWD: "relative"}},
 		{"private", plugin.SessionParams{CWD: home}},
@@ -151,6 +153,18 @@ func TestConfig_PreflightFailsClosedBeforeThreadCreation(t *testing.T) {
 				if strings.HasPrefix(method, "thread/") {
 					t.Fatal("thread created before verification")
 				}
+			}
+		})
+	}
+}
+
+func TestConfig_SubagentsRejectInheritedInstructionReplacements(t *testing.T) {
+	for _, key := range []string{"agents.explorer.config_file", "agents.custom.config_file", "agents", "features.multi_agent_v2.subagent_developer_instructions", "features.multi_agent_v2", "features"} {
+		t.Run(key, func(t *testing.T) {
+			encoded, _ := json.Marshal(map[string]any{"config": map[string]any{}, "origins": map[string]any{key: map[string]any{"name": map[string]string{"type": "user"}}}})
+			caller := &configCaller{requirements: `{"requirements":null}`, config: string(encoded)}
+			if err := preflight(testContext(t), caller, true); err == nil {
+				t.Fatal("possible inherited instruction replacement accepted")
 			}
 		})
 	}

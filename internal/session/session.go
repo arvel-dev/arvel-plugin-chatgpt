@@ -11,6 +11,8 @@ import (
 
 	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/appserver/schema"
 	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/connection"
+	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/sanitize"
+	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/skillset"
 	"github.com/arvel-dev/arvel-sdk/plugin"
 	"github.com/arvel-dev/arvel-sdk/protocol"
 )
@@ -47,21 +49,27 @@ type activeTurn struct {
 
 // Session implements one stable ACP identity backed by a vendor thread.
 type Session struct {
-	mu       sync.Mutex
-	id       string
-	backend  Backend
-	router   *Router
-	log      *slog.Logger
-	params   plugin.SessionParams
-	config   threadConfig
-	runtime  connection.Runtime
-	sub      *Subscription
-	catalog  protocol.ModelsResult
-	snapshot Snapshot
-	active   *activeTurn
-	closed   bool
-	detached bool
-	broken   bool
+	mu                 sync.Mutex
+	id                 string
+	backend            Backend
+	router             *Router
+	log                *slog.Logger
+	params             plugin.SessionParams
+	config             threadConfig
+	runtime            connection.Runtime
+	sub                *Subscription
+	catalog            protocol.ModelsResult
+	snapshot           Snapshot
+	active             *activeTurn
+	closed             bool
+	detached           bool
+	broken             bool
+	mcpApprovalSeq     uint64
+	mcpStartupFailures map[string]bool
+	skillManager       *skillset.Manager
+	skillCatalog       []protocol.SkillRef
+	skillRelease       func()
+	children           map[string]*childSession
 	// Tests inject a shorter escalation interval without sleeping ten seconds.
 	cancelAfter time.Duration
 	now         func() time.Time
@@ -71,7 +79,7 @@ var _ plugin.Session = (*Session)(nil)
 var _ plugin.ConfigOptioner = (*Session)(nil)
 
 // New creates a thread or honors the host's explicit ResumeFrom identity.
-func New(ctx context.Context, backend Backend, router *Router, params plugin.SessionParams, logger *slog.Logger) (*Session, error) {
+func New(ctx context.Context, backend Backend, router *Router, params plugin.SessionParams, logger *slog.Logger, managers ...*skillset.Manager) (*Session, error) {
 	thread := ""
 	if params.Meta.ResumeFrom != nil {
 		thread = *params.Meta.ResumeFrom
@@ -79,19 +87,19 @@ func New(ctx context.Context, backend Backend, router *Router, params plugin.Ses
 			return nil, setupError("Resume thread identity is empty")
 		}
 	}
-	return open(ctx, backend, router, params, thread, nil, logger)
+	return open(ctx, backend, router, params, thread, nil, logger, managers)
 }
 
 // Load preserves the requested ACP identity. A snapshot restores in-process
 // next-turn selections and budget accounting after the SDK's idle close.
-func Load(ctx context.Context, backend Backend, router *Router, params plugin.LoadParams, saved *Snapshot, logger *slog.Logger) (*Session, error) {
+func Load(ctx context.Context, backend Backend, router *Router, params plugin.LoadParams, saved *Snapshot, logger *slog.Logger, managers ...*skillset.Manager) (*Session, error) {
 	if params.SessionID == "" {
 		return nil, setupError("Session identity is empty")
 	}
-	return open(ctx, backend, router, params.SessionParams, params.SessionID, saved, logger)
+	return open(ctx, backend, router, params.SessionParams, params.SessionID, saved, logger, managers)
 }
 
-func open(ctx context.Context, backend Backend, router *Router, params plugin.SessionParams, id string, saved *Snapshot, logger *slog.Logger) (*Session, error) {
+func open(ctx context.Context, backend Backend, router *Router, params plugin.SessionParams, id string, saved *Snapshot, logger *slog.Logger, managers []*skillset.Manager) (*Session, error) {
 	// Own the host's nested slices/maps for the lifetime of this session.
 	encoded, err := json.Marshal(params)
 	if err != nil {
@@ -104,10 +112,19 @@ func open(ctx context.Context, backend Backend, router *Router, params plugin.Se
 		logger = slog.New(slog.DiscardHandler)
 	}
 	s := &Session{backend: backend, router: router, log: logger, params: params, id: id, cancelAfter: cancelTimeout, now: time.Now}
+	if len(managers) > 0 {
+		s.skillManager = managers[0]
+	}
+	if len(params.Meta.Skills) > 0 && s.skillManager == nil {
+		return nil, setupError("Workspace skill ownership is unavailable")
+	}
 	if saved != nil {
 		s.snapshot = *saved
 	}
 	if err := s.connect(ctx, id); err != nil {
+		if s.skillRelease != nil {
+			s.skillRelease()
+		}
 		return nil, err
 	}
 	if s.id == "" {
@@ -143,13 +160,25 @@ func (s *Session) connect(ctx context.Context, resume string) error {
 	if err != nil {
 		return err
 	}
+	cfg.clean = sanitize.Combine(cfg.clean, runtime.Clean)
 	model, effort, err := selection(catalog, cfg.meta.Model, cfg.meta.Effort)
 	if err != nil {
 		return err
 	}
 	cfg.start.Model = &model
-	if err = preflight(ctx, runtime.Client); err != nil {
+	if err := configureSubagents(&cfg, catalog, model); err != nil {
 		return err
+	}
+	if err = preflight(ctx, runtime.Client, cfg.children > 0); err != nil {
+		return err
+	}
+	if err := s.prepareSkills(ctx, cfg.start.CWD); err != nil {
+		return err
+	}
+	if s.skillManager != nil {
+		if err := s.verifySkills(ctx, runtime.Client, cfg.start.CWD); err != nil {
+			return err
+		}
 	}
 	release, err := s.router.Prepare(runtime.Generation)
 	if err != nil {
@@ -201,12 +230,21 @@ func (s *Session) connect(ctx context.Context, resume string) error {
 			return setupError("Cannot register the Codex session stream")
 		}
 	}
+	if cfg.children > 0 {
+		if err := sub.EnableChildren(cfg.children); err != nil {
+			return setupError("Cannot prepare subagent routing")
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.sub != nil {
 		s.sub.Close()
 	}
+	if s.runtime.Generation != runtime.Generation || s.children == nil {
+		s.children = map[string]*childSession{}
+	}
 	s.runtime, s.sub, s.config, s.catalog = runtime, sub, cfg, catalog
+	s.mcpStartupFailures = map[string]bool{}
 	attached = true
 	s.snapshot.VendorID = response.Thread.ID
 	if s.snapshot.Model == saved.Model && s.snapshot.Effort == saved.Effort {
@@ -262,9 +300,14 @@ func (s *Session) Close(ctx context.Context) error {
 		}
 	}
 	s.mu.Lock()
+	leaseRelease := s.skillRelease
+	s.skillRelease = nil
 	if s.sub != nil {
 		s.sub.Close()
 		s.sub = nil
+	}
+	if leaseRelease != nil {
+		defer leaseRelease()
 	}
 	if s.detached {
 		s.mu.Unlock()
@@ -272,6 +315,11 @@ func (s *Session) Close(ctx context.Context) error {
 	}
 	s.detached = true
 	runtime, thread := s.runtime, s.snapshot.VendorID
+	children := make([]string, 0, len(s.children))
+	for id := range s.children {
+		children = append(children, id)
+	}
+	s.children = map[string]*childSession{}
 	s.mu.Unlock()
 	select {
 	case <-runtime.Client.Done():
@@ -280,6 +328,11 @@ func (s *Session) Close(ctx context.Context) error {
 	}
 	ctx, cancel := context.WithTimeout(ctx, controlTimeout)
 	defer cancel()
+	for _, id := range children {
+		if err := runtime.Client.Call(ctx, "thread/unsubscribe", schema.ThreadUnsubscribeParams{ThreadID: id}, &struct{}{}); err != nil {
+			return setupError("Cannot unload a Codex subagent")
+		}
+	}
 	if err := runtime.Client.Call(ctx, "thread/unsubscribe", schema.ThreadUnsubscribeParams{ThreadID: thread}, &struct{}{}); err != nil {
 		return setupError("Cannot unload the Codex session")
 	}

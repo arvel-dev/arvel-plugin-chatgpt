@@ -79,3 +79,50 @@ without executing the owned project/notify sentinels. Its model responses come
 from a synthetic loopback fixture and require no account or OpenAI model usage.
 Its successful gate label applies only to that explicitly scoped configuration
 measurement, not to full G3 completion or production host compatibility.
+
+
+### Assigned-skill isolation counterexample
+
+`skills-isolation-linux` records four completed real Codex 0.164.0 turns using
+an owned synthetic loopback model backend in a disposable Linux arm64 home.
+Unassigned user/project/ancestor skill bodies reached that backend despite
+private CODEX_HOME, untrusted project configuration, a hidden catalog and
+exact-path disabling of previously enumerated skills. Cases include textual
+selection, structured selection on a sibling open thread, a later root turn
+and unloaded-thread resume. No real account, OpenAI request or host sandbox
+certification is involved. Metadata keeps `completed:false` and
+`securityGatePassed:false`; the recorder exits nonzero. See FINDINGS “G5 —
+Assigned-skill isolation gate (blocked)” for the guarded reproduction command
+and the precise measured scope. Never create the disposable-home ownership
+marker in a person's actual home.
+
+
+`image-inline-linux` is real Codex 0.164.0 data-URL image traffic against an owned
+synthetic loopback backend in a disposable Linux arm64 home. The backend verifies
+the exact harmless one-pixel PNG arrives as input_image before returning the fixed
+IMAGE_INPUT_OBSERVED marker. It uses no account/OpenAI model and makes no host
+sandbox claim. The `image-inline` recorder requires the same disposable-home guard
+as the skill counterexample. The retained image bytes are synthetic fixture data.
+
+`mcp-native-*-linux` captures Codex 0.164.0 against owned stdio/HTTP MCP fixtures
+and an owned synthetic Responses backend, with external networking disabled.
+Successful recordings cover once approval, decline, deny, allow, per-tool
+overrides, an empty allowlist, repeated prompts and missing-executable startup
+failure. The session-unsupported and two stdio namespace failure recordings
+retain `completed:false`; they are negative evidence. No fixture certifies real
+accounts, OpenAI models, Windows execution or the application's sandbox.
+The `mcp-native-*` recorder requires the disposable-home ownership guard.
+
+
+`skills-managed-linux` uses SDK v0.1.3 with the actual bounded materialization
+adapter. It proves native collision aliases/manual selection and last-lease
+cleanup against owned synthetic sources. `subagent-owned-linux` records child
+source attribution and inherited defaults; `subagent-owned-capacity-linux`
+measures root-inclusive active capacity while holding an owned child request.
+`subagent-owned-override-linux` remains failed evidence for strict model binding;
+the owner subsequently chose documented defaults. These are real Linux CLI
+traffic with synthetic model responses, not account/model/Windows certification.
+
+`subagent-owned-role-linux` records Codex 0.164.0 with SDK v0.1.3 and an owned
+synthetic backend. Description-only native roles preserve the parent's
+instructions; it does not certify real OpenAI accounts or the Arvel sandbox.

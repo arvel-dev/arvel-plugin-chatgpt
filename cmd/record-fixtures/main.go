@@ -25,7 +25,19 @@ func main() {
 		return
 	}
 	if len(os.Args) > 1 && os.Args[1] == "mcp-fixture" {
-		if err := spike.ServeMCP(context.Background(), os.Stdin, os.Stdout); err != nil {
+		var observe []func() error
+		if len(os.Args) == 3 {
+			marker := os.Args[2]
+			observe = append(observe, func() error {
+				if _, err := os.Lstat(marker); err == nil {
+					return nil
+				}
+				return spike.IsolationMarker(marker)
+			})
+		} else if len(os.Args) != 2 {
+			os.Exit(2)
+		}
+		if err := spike.ServeMCP(context.Background(), os.Stdin, os.Stdout, observe...); err != nil {
 			logger.Error("MCP fixture stopped")
 			os.Exit(1)
 		}

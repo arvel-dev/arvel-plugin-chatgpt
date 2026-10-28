@@ -1,0 +1,12 @@
+{
+  "arch": "arm64",
+  "completed": false,
+  "coverage": "real CLI G5 input/tool policy observed with owned synthetic loopback model backend; no account/OpenAI/model-spend or host sandbox certification",
+  "home": "private",
+  "os": "linux",
+  "recordedAt": "2026-10-28T16:54:13Z",
+  "sanitization": "in-memory before persistence",
+  "scenario": "subagent-owned-override",
+  "schemaVersion": "0.164.0",
+  "version": "0.164.0"
+}

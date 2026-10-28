@@ -1,0 +1,12 @@
+{
+  "arch": "arm64",
+  "completed": true,
+  "coverage": "real CLI data-URL image input observed at owned synthetic loopback backend; no account/OpenAI/model-spend or host sandbox certification",
+  "home": "private",
+  "os": "linux",
+  "recordedAt": "2026-10-28T15:54:22Z",
+  "sanitization": "in-memory before persistence",
+  "scenario": "image-inline",
+  "schemaVersion": "0.164.0",
+  "version": "0.164.0"
+}
