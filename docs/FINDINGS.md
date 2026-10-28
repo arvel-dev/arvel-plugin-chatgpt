@@ -365,3 +365,45 @@ policy/elicitation handling remains a production bridge requirement.
 - Final review corrected the README drift-job claim, included NOTICE in release
   archives and added per-recording SDK redactor registration so known challenges
   cannot leak through later free-text errors. Regression tests cover the latter.
+
+
+## G1 — Runtime transport foundation
+
+The production appserver package reuses SDK v0.1.2 jsonrpc.Peer through a Codex
+lite envelope adapter. SDK decoding requires jsonrpc=2.0; the adapter adds it only
+internally and removes it on outbound frames. It enforces the original vendor
+64 MiB limit before normalization, preserves integer IDs without float conversion
+and rejects duplicate active server requests. SDK scheduling preserves thread
+notification order and permits callbacks to make reentrant RPC calls.
+
+Client owns OS pipes, the SDK process tree and Serve worker. Initialization must
+complete before initialized is sent. An individual Call cancellation leaves the
+process alive and late replies are ignored; process closure fails pending calls.
+Close cancels dispatch, unblocks reads, closes pipes, reaps the tree and waits for
+its worker. Handlers must honor context. G3 owns semantic turn interrupt/resume
+and restart decisions; there is no implicit transport retry.
+
+The SDK peer's internal logger is discarded because its panic/error paths may
+contain handler text. Outer diagnostics use SDK logx/redact, fixed method/status
+context and bounded debug-only stderr lines. Long stderr lines are dropped whole;
+registered secrets remain protected across split chunks. RPC error codes and
+redacted messages are returned, while unvalidated error data is omitted. Login
+keys and returned public challenges are registered with the shared redactor.
+
+Known command/file requests default to decline, permissions to an empty turn
+profile and MCP elicitation to decline. Unknown requests get method-not-found.
+No persistent grants, experimental/internal auth, policy bypass or sandbox
+fallback is introduced. These are synthetic contract tests, not new real
+permissions-producer observations. Provider feature bits remain false; G2/G3
+still own account actions, models and agent sessions.
+
+Evidence: schema types re-emit recorded G0 requests against exact generated
+schemas; synthetic Go fakevendor and pipe tests cover concurrent RPC, callback
+reentrancy/order, cancellation/late responses, approval shutdown, invalid or empty
+initialization, EOF/crash, 64 MiB frames, environment isolation and diagnostics.
+Unit tests never invoke Codex, inspect credentials or use the network.
+
+A gated G1 smoke test also passed against the installed real Codex app-server:
+initialize/initialized, account/read with a fresh private CODEX_HOME, then owned
+shutdown. It used no login or credential-file access and confirmed no inherited
+account. This is distinct from synthetic fakevendor coverage.
