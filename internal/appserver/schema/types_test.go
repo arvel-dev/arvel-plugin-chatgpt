@@ -14,7 +14,12 @@ import (
 
 func validate(t *testing.T, name string, value any) {
 	t.Helper()
-	root := filepath.Join("..", "..", "..", "testdata", "schema", "0.164.0")
+	validateVersion(t, "0.164.0", name, value)
+}
+
+func validateVersion(t *testing.T, version, name string, value any) {
+	t.Helper()
+	root := filepath.Join("..", "..", "..", "testdata", "schema", version)
 	var path string
 	if err := filepath.WalkDir(root, func(p string, e os.DirEntry, err error) error {
 		if err != nil {
@@ -128,5 +133,80 @@ func TestStableTypes_ReemitRecordedRequests(t *testing.T) {
 	}
 	if count < 48 {
 		t.Fatalf("only %d recorded requests checked", count)
+	}
+}
+
+func TestAccountCatalog_ReplayRecordedResponses(t *testing.T) {
+	for _, scenario := range []string{"account", "private-api-key", "device-login-linux", "models", "models-paginated"} {
+		raw, err := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "fixtures", scenario, "transcript.jsonl"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		methods := map[string]string{}
+		count := 0
+		for _, line := range bytes.Split(raw, []byte{'\n'}) {
+			if len(line) == 0 {
+				continue
+			}
+			var entry struct {
+				Direction string `json:"direction"`
+				Message   struct {
+					ID     json.RawMessage `json:"id"`
+					Method string          `json:"method"`
+					Params json.RawMessage `json:"params"`
+					Result json.RawMessage `json:"result"`
+				} `json:"message"`
+			}
+			if err := json.Unmarshal(line, &entry); err != nil {
+				t.Fatal(err)
+			}
+			m := entry.Message
+			if entry.Direction == "client_to_server" {
+				methods[string(m.ID)] = m.Method
+				continue
+			}
+			var target any
+			var name string
+			switch m.Method {
+			case "account/login/completed":
+				target = &s.LoginCompleted{}
+				name = "AccountLoginCompletedNotification.json"
+			case "account/updated":
+				target = &s.AccountUpdated{}
+				name = "AccountUpdatedNotification.json"
+			}
+			payload := m.Params
+			if len(m.Result) > 0 {
+				payload = m.Result
+				switch methods[string(m.ID)] {
+				case "account/read":
+					target = &s.AccountReadResponse{}
+					name = "GetAccountResponse.json"
+				case "account/login/start":
+					target = &s.LoginResponse{}
+					name = "LoginAccountResponse.json"
+				case "model/list":
+					target = &s.ModelListResponse{}
+					name = "ModelListResponse.json"
+				}
+			}
+			if target == nil {
+				continue
+			}
+			if err := json.Unmarshal(payload, target); err != nil {
+				t.Fatal(err)
+			}
+			validate(t, name, target)
+			count++
+		}
+		if count == 0 {
+			t.Fatalf("no typed payload in %s", scenario)
+		}
+	}
+	for _, version := range []string{"0.122.0", "0.164.0"} {
+		hidden := true
+		limit := uint32(1)
+		cursor := "1"
+		validateVersion(t, version, "ModelListParams.json", s.ModelListParams{IncludeHidden: &hidden, Limit: &limit, Cursor: &cursor})
 	}
 }

@@ -70,7 +70,7 @@ func Run(ctx context.Context, o RunOptions) error {
 		return errors.New("unknown recording command")
 	}
 	if o.Mode == "sandbox" {
-		return errors.New("sandbox probe requires an actual Arvel P9 launcher and native target; not available")
+		return errors.New("sandbox probe requires the production Arvel M5c launcher and native target; M0 P9 is feasibility only; see docs/HOST-INTEGRATION.md")
 	}
 	if o.Out == "" {
 		return errors.New("probe requires --out")
@@ -817,8 +817,33 @@ func (p *peer) scenario(ctx context.Context, scenario, cwd string) error {
 		_, err := p.request(ctx, "account/read", map[string]any{"refreshToken": false})
 		return err
 	case "models":
-		_, err := p.request(ctx, "model/list", map[string]any{})
-		return err
+		var cursor *string
+		seen := map[string]bool{}
+		for range 100 {
+			params := map[string]any{"includeHidden": true, "limit": 1}
+			if cursor != nil {
+				params["cursor"] = *cursor
+			}
+			raw, err := p.request(ctx, "model/list", params)
+			if err != nil {
+				return err
+			}
+			var page struct {
+				NextCursor *string `json:"nextCursor"`
+			}
+			if err := json.Unmarshal(raw, &page); err != nil {
+				return err
+			}
+			if page.NextCursor == nil {
+				return nil
+			}
+			if seen[*page.NextCursor] {
+				return errors.New("repeated model cursor")
+			}
+			seen[*page.NextCursor] = true
+			cursor = page.NextCursor
+		}
+		return errors.New("model pagination exceeded bound")
 	case "limits":
 		_, err := p.request(ctx, "account/rateLimits/read", map[string]any{})
 		return err

@@ -297,3 +297,16 @@ func TestCapture_RedactsChallengeEchoedInLaterText(t *testing.T) {
 		}
 	}
 }
+
+func TestRun_SandboxRequiresProductionHostBoundary(t *testing.T) {
+	t.Setenv("ARVEL_E2E", "1")
+	output := filepath.Join(t.TempDir(), "must-not-exist")
+	// A nonexistent binary proves the boundary preflight precedes vendor discovery/start.
+	err := Run(context.Background(), RunOptions{Mode: "sandbox", Codex: filepath.Join(t.TempDir(), "missing-codex"), Out: output})
+	if err == nil || !strings.Contains(err.Error(), "production Arvel M5c launcher") {
+		t.Fatalf("expected production host boundary guidance: %v", err)
+	}
+	if _, err := os.Stat(output); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unavailable sandbox probe created output: %v", err)
+	}
+}

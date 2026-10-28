@@ -5,6 +5,7 @@ package provider_test
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -16,19 +17,19 @@ import (
 	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/provider"
 )
 
-func TestProvider_ReportsBootstrapWithoutVendorAccess(t *testing.T) {
+func TestProvider_ReportsMissingBinaryWithoutCredentialLeak(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	h := mockhost.InProcess(t, provider.New())
 	const canary = "sk-bootstrap-canary-never-echo"
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	_, err := h.InitializeCtx(ctx, protocol.InitMeta{PluginAPI: protocol.PluginAPI,
-		DataDir: t.TempDir(), Connection: protocol.ConnectionInfo{Kind: "api_key", Secrets: map[string]string{"apiKey": canary}}})
+		DataDir: t.TempDir(), Connection: protocol.ConnectionInfo{Kind: "api_key", Config: map[string]any{"codexPath": filepath.Join(t.TempDir(), "missing-codex")}, Secrets: map[string]string{"apiKey": canary}}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	status, err := h.Status()
-	if err != nil || status.State != protocol.StateError || status.Message == "" {
+	if err != nil || status.State != protocol.StateNotInstalled || status.Message == "" {
 		t.Fatalf("status: %+v, %v", status, err)
 	}
 	usage, err := h.Usage()
@@ -59,7 +60,8 @@ func TestProvider_ReportsBootstrapWithoutVendorAccess(t *testing.T) {
 
 func TestProvider_DoesNotAdvertiseUnimplementedFeatures(t *testing.T) {
 	p := provider.New()
-	f, err := p.Initialize(context.Background(), protocol.InitMeta{})
+	t.Cleanup(func() { _ = p.Shutdown(context.Background()) })
+	f, err := p.Initialize(context.Background(), protocol.InitMeta{DataDir: t.TempDir(), Connection: protocol.ConnectionInfo{Kind: "chatgpt"}})
 	if err != nil || f.LoadSession || f.Subagents || f.PromptImage || f.Skills != nil || f.MCPHTTP || f.MCPSSE {
 		t.Fatalf("features: %+v, %v", f, err)
 	}

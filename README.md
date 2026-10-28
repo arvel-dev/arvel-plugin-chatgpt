@@ -43,6 +43,16 @@ npm i -g @openai/codex          # macOS, Linux, Windows
 **API key.** Paste the key in Arvel → Settings → ChatGPT → **Add API key**. Arvel stores it in your system keychain (on servers: encrypted host storage). The plugin uses it only inside a private Codex folder, so your personal Codex setup is untouched.
 
 The plugin never reads Codex's stored tokens. Sign-in is done by Codex itself.
+Only the default ChatGPT connection uses your normal Codex home. Separate
+ChatGPT sign-ins and API-key connections use `codex-home` inside the connection's
+plugin data directory. Existing `CODEX_HOME` and authentication environment
+variables are not inherited. Only the separate ChatGPT connection offers sign-out;
+your shared CLI login is never logged out by the plugin.
+
+Codex accepts an API key locally when it configures the connection. A **Ready**
+status means the key is configured, not that OpenAI has validated it remotely.
+Replacing a key restarts the connection with the new host-supplied secret and
+replaces the previous private Codex login.
 
 ## Models and reasoning effort
 
@@ -52,9 +62,16 @@ The model list comes from Codex (`model/list`), together with the reasoning leve
 |---|---|
 | Auto | the model's default effort |
 | Low · Medium · High | `low` · `medium` · `high` |
-| Max | the highest single-agent level the model offers (e.g. `xhigh`) |
+| Extra high | `xhigh`, when offered |
+| Max | `max`, when offered; automatic task delegation (`ultra`) is excluded |
 
-Model and effort changes apply from the next message of the conversation.
+The catalog is cached for six hours. Refresh bypasses the cache; account changes
+and app-server restarts invalidate it. Hidden models are omitted unless they are
+the account default. Connection changes are pushed to Arvel, with an additional
+account check every 30 seconds to detect sign-in changes made outside Arvel.
+
+Model and effort changes will apply from the next message once session support
+is implemented.
 
 ## Permissions and safety
 
@@ -118,10 +135,14 @@ Independent open-source project, not affiliated with or endorsed by OpenAI. "Ope
 
 ## Development
 
-Requires Go 1.27.2 or newer for arvel-sdk v0.1.2. The current provider is a
-bootstrap and reports an incomplete status; it does not execute agent sessions
-yet. See [bootstrap findings](docs/FINDINGS.md) for measured CLI behavior and
+Requires Go 1.27.2 or newer for arvel-sdk v0.1.2. Connection status, browser and
+device-code sign-in, isolated API-key configuration and model discovery are
+implemented. Agent sessions, usage mapping and release conformance remain
+unimplemented. See [bootstrap findings](docs/FINDINGS.md) for measured CLI behavior and
 outstanding verification. Minimal Linux containers need a system CA bundle.
+`ARVEL_LOG_LEVEL=debug` enables redacted development diagnostics on stderr.
+`ARVEL_CODEX_BIN` overrides binary discovery only with `ARVEL_DEV=1`; production
+connections use `codexPath` or executable discovery.
 
 ```bash
 go test -race ./...

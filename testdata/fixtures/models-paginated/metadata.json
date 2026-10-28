@@ -1,0 +1,11 @@
+{
+  "arch": "arm64",
+  "completed": true,
+  "home": "shared",
+  "os": "darwin",
+  "recordedAt": "2026-10-28T07:59:37Z",
+  "sanitization": "in-memory before persistence; machine name anonymized",
+  "scenario": "models",
+  "schemaVersion": "0.164.0",
+  "version": "0.164.0"
+}

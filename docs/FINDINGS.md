@@ -291,18 +291,37 @@ content was opened.
 
 ## V13 — Nested Arvel sandbox and CONNECT proxy
 
-**Deferred by explicit user approval to future host integration. Not verified.** The local arvel checkout
-and the remote main tree had no sandbox implementation or FINDINGS/P9 report
-when inspected. Generic Docker execution proves neither Arvel's host boundary
-nor cross-platform nesting/proxy behavior.
+**Deferred to the actual production M5c host boundary. Not verified.** Plugin
+milestone development and release conformance continue independently against
+SDK v0.1.2 and mockhost; neither M0 nor M5c completion is a prerequisite for those
+stages. Real host/CLI compatibility and any conditional native-sandbox fallback
+remain separate evidence gates.
+
+On 2026-10-28 the owner reported M0 complete locally, with GitHub checks and merge
+remaining. The inspected local host revision is
+`f32141ba222fc3cdbda66bf935e247d79500f283` (`feat/m0-foundation`). Its accepted
+ADR-14 and `docs/sandbox-contract.md` explicitly assign synthetic OS feasibility
+to M0 and the production launcher/proxy to M5c. M0 artifacts are not a stable
+plugin-launch API. The host's named-vendor runner was removed; its historical
+CLI experiments cannot establish compatibility or justify a fallback.
+
+The pinned SDK already supplies manifest declarations, `sandbox.mode` and
+`sandbox.proxy`; no wire/SDK change is required. G2 tests verify proxy environment
+forwarding through a synthetic vendor. Those tests and the standalone private-home
+Codex smoke establish no actual CONNECT/allow-list, denied-path or nesting result.
 
 Do not enable a danger-full-access fallback without a reproduced failure inside
-a real os/container host sandbox on that OS. Mode none always retains vendor
-sandboxing. The granted user exception remains conditional. SDK proxy-env tests
-pass, but they are not real CONNECT/host allow-list evidence. macOS/Linux/Windows
-nesting, denied-path tests and sanitized proxy logs must be recorded once P9 is
-available. This approved deferral does not block G0, but it does block claims
-of verified host integration or any sandbox fallback until actual evidence exists.
+a real effective M5c os/container sandbox on that OS, with isolation still
+verified. Mode none always retains vendor sandboxing. Record native
+macOS/Linux/Windows results, actual host/plugin/CLI revisions and sanitized proxy
+logs when that production boundary exists. No M0 profile or generic Docker run
+substitutes for this evidence. [The integration handoff](HOST-INTEGRATION.md)
+defines the required matrix and current unverified cells.
+
+The immutable SPEC's P9 wording is retained; this is a factual dependency
+reconciliation to the owner-approved host contract, preserving security and
+product semantics under the standing compatibility delegation. The development
+sandbox probe now identifies M5c instead of promising a nonexistent P9 launcher.
 
 ## SDK manifest reconciliation
 
@@ -407,3 +426,126 @@ A gated G1 smoke test also passed against the installed real Codex app-server:
 initialize/initialized, account/read with a fresh private CODEX_HOME, then owned
 shutdown. It used no login or credential-file access and confirmed no inherited
 account. This is distinct from synthetic fakevendor coverage.
+
+
+## G2 — Connections, authentication and model discovery
+
+SDK v0.1.2's `plugin.HostAware.SetHost` supplies `Host.StatusChanged` and the host
+logger. Initialization only validates local connection metadata; executable
+resolution, the minimum 0.122.0 version check and app-server startup happen lazily.
+One manager owns the process and a cancellable refresh worker. Requests have a
+15-second bound, including gate wait, and do not own the established process.
+Vendor startup cancellation closes an incomplete process. Account notifications
+are queued without RPC in the callback; authoritative `account/read` refresh and
+30-second polling detect login/logout. Process death publishes an error, clears
+the catalog revision and permits restart on the next explicit operation; no
+request or model turn is automatically replayed.
+
+The actual SDK initialization shape is `Connection.Config`/`Secrets`,
+`Platform.Remote`, `DataDir`, and optional `Sandbox.Proxy`. The environment uses
+SDK `EnvBuilder.Proxy` and preserves real HOME while removing inherited auth and
+CODEX_HOME. Only default ChatGPT omits explicit CODEX_HOME; separate ChatGPT and
+API-key connections use the connection data directory's `codex-home`. No
+credential file is inspected. Existing private-home symlinks are rejected and
+private directory permissions are restricted. Shared logout is unavailable.
+Host V13 integration remains deferred; synthetic proxy forwarding is not proof
+of host CONNECT, nesting, filesystem-write or cross-OS sandbox compatibility.
+
+`account/read.account.planType` is stable in both committed versions, so G2 uses
+it for the status plan without implementing G4's rate-limit mapping. Email labels
+are masked. `requiresOpenaiAuth` is not a signed-out flag: it is also true for
+recorded signed-in accounts. Readiness requires the connection's expected account
+type. API keys are always applied from initialize secrets in the private home,
+replacing any stale private account. Host key changes use a new plugin process;
+the old persisted private login is logged out before applying the replacement.
+As established by V9, local key acceptance proves configuration only, not valid
+remote credentials or spend. The status deliberately says "API key configured
+in Codex"; real key verification and model calls were not performed in G2.
+
+Browser/device login returns only the SDK URL action and deliberate challenge
+explanation. The plugin never launches a browser itself. A matching nonempty
+completion loginId clears its pending attempt; stale or null-ID completions can
+trigger account refresh but cannot cancel a newer login. Repeating login cancels
+the old attempt. Failed/cancelled starts with no known loginId close the vendor
+process to avoid an abandoned flow. Challenges and keys are registered with the
+redactor and never logged by connection code.
+
+A real read-only `models-paginated` recording on Codex 0.164.0/macOS arm64 verifies
+`includeHidden:true`, `limit:1`, and the actual returned pagination cursors. All
+pages are sanitized and indexed. It uses shared account discovery without login,
+logout or a model turn. The development recorder's fixed models scenario now
+walks this bounded pagination path. Stable request fields are schema-validated
+against both 0.122.0 and 0.164.0; identical generated schemas were not regenerated.
+
+The executable `model` slug becomes SDK `Model.ID`, and `isDefault` becomes the
+catalog default. The recorder hashes all string fields named `id`, so the opaque
+IDs in sanitized G0 catalogs do not prove that real vendor id/model values differ.
+Using `model` avoids treating sanitized identifiers as executable model names.
+The mapper retains a hidden default, filters unsupported effort values, offers
+`max` independently of `xhigh` (V10), and excludes `ultra` delegation. Unsupported
+default efforts are omitted; absent inputModalities uses the committed schema's
+text/image default. Empty, duplicate, incomplete or ambiguous-default catalogs
+fail instead of inventing a fallback model. Pagination has cursor-cycle, page and
+model-count bounds. Complete catalogs are cached six hours, with defensive copies,
+forced refresh and account/process revision invalidation; failed refresh does not
+overwrite a valid complete cache.
+
+Evidence: typed real-payload schema replay, real paginated capture, deterministic
+connection/model tests and the self-executing provider fakevendor. The latter
+exercises actual production discovery/version/transport/environment and SDK calls,
+including an early login completion notification. Session features remain false,
+sessions return an explicit unavailable error, and usage remains unknown until
+G3/G4. No real interactive login was repeated, no API key was requested, and no
+sandbox fallback was enabled.
+
+G2 verification on Go 1.27.3 passed `go test -race ./...`, vet, staticcheck v0.8.2, offline
+fixture validation and pure-Go builds (native macOS arm64, cross-build Windows
+amd64/Linux arm64). govulncheck found zero reachable vulnerabilities and zero
+affected imported packages. It reported two module-only advisories in the
+pre-existing transitive `golang.org/x/text v0.14.0`: GO-2026-6629 and
+GO-2026-5970. Their affected packages are not imported by this repository; G2
+does not introduce a dependency override. No full native cross-OS or real Arvel
+sandbox compatibility is claimed by these checks.
+
+A review regression check found that failed login completion originally looked
+identical to the previous signed-out status, so both manager and SDK deduplication
+could suppress its notification. The fix preserves matched completion success,
+emits a safe failure/cancellation message and a distinct pending message on retry.
+It preserves authoritative account readiness even if a failed replacement login
+leaves an existing account signed in. The manager regression failed before the
+fix and passed afterward; a real-transport/SDK fakevendor test proves that two
+consecutive failed attempts each emit status_changed. Raw vendor failure text
+is never forwarded.
+
+
+## Post-M0 handoff validation
+
+The follow-up reconciles V13 with the host's accepted sandbox contract at
+f32141ba222fc3cdbda66bf935e247d79500f283; it does not implement a private launcher
+or grant new sandbox permissions. The regression for stale P9 launcher guidance
+failed before the diagnostic fix and passed afterward, also checking that an
+unavailable sandbox probe creates no output. Existing offline race, vet,
+staticcheck v0.8.2, fixture validation and pure-Go build checks pass.
+
+The first tagged e2e command inadvertently selected the entire package. It passed
+in 132.209s and included real shared-account model calls; it completed before any
+interrupt signal was sent. These are standalone CLI tests, not M5c integration.
+The documented reproduction command now filters exactly
+TestAppServer_TransportHandshake, with count=1 and a 45-second suite timeout, to
+keep the private-home smoke separate from the broader model scenarios. The
+filtered smoke also passed without sign-in or a model request. No resulting
+recording is added to the committed fixtures; test temporary state is owned by
+the existing harness. Real host/CLI compatibility remains unverified.
+
+
+G2 native CI initially passed macOS/Linux and exposed two Windows-only test
+assumptions in [run 40677198373](https://github.com/arvel-dev/arvel-plugin-chatgpt/actions/runs/40677198373).
+SDK EnvBuilder.Proxy represents case-insensitive Windows aliases with one
+spelling, so the connection test now compares normalized names and actual proxy,
+loopback-exception and log-control values. Provider transport tests now allocate
+their temporary directory before registering Shutdown cleanup: testing.T's LIFO
+order then stops the owned child before removing its Windows cwd. These are test
+portability fixes; production environment/process behavior and SDK code remain
+unchanged. The existing G0 environment test already uses normalized names.
+Native PR CI, rather than cross-compilation or POSIX directory removal, is the
+Windows regression check.
