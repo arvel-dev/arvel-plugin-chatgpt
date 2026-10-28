@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"net/mail"
 	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/appserver"
 	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/appserver/schema"
@@ -26,6 +29,7 @@ type Client interface {
 	Close(context.Context) error
 	Done() <-chan struct{}
 	Err() error
+	WaitResponses(context.Context, string, string) error
 }
 
 type dependencies struct {
@@ -34,32 +38,36 @@ type dependencies struct {
 	version       func(context.Context, string) (string, error)
 	poll, timeout time.Duration
 	now           func() time.Time
+	hooks         Hooks
 }
 
 // Manager serializes account operations and owns the process and refresh worker.
 type Manager struct {
-	cfg         config
-	deps        dependencies
-	log         *slog.Logger
-	redactor    *redact.Redactor
-	changed     func(protocol.Status)
-	ctx         context.Context
-	cancel      context.CancelFunc
-	done        chan struct{}
-	gate        chan struct{}
-	wake        chan struct{}
-	revision    atomic.Uint64
-	eventsMu    sync.Mutex
-	completed   map[string]bool
-	client      Client
-	binary      *protocol.BinaryInfo
-	keyApplied  bool
-	loginFailed bool
-	pending     string
-	identity    string
-	last        protocol.Status
-	haveLast    bool
-	catalog     models.Cache
+	cfg                           config
+	deps                          dependencies
+	log                           *slog.Logger
+	redactor                      *redact.Redactor
+	changed                       func(protocol.Status)
+	ctx                           context.Context
+	cancel                        context.CancelFunc
+	done                          chan struct{}
+	gate                          chan struct{}
+	wake                          chan struct{}
+	revision                      atomic.Uint64
+	eventsMu                      sync.Mutex
+	completed                     map[string]bool
+	client                        Client
+	retiring                      Client
+	generation, stoppedGeneration uint64
+	binary                        *protocol.BinaryInfo
+	keyApplied                    bool
+	borrowed                      bool
+	loginFailed                   bool
+	pending                       string
+	identity                      string
+	last                          protocol.Status
+	haveLast                      bool
+	catalog                       models.Cache
 }
 
 // New validates local configuration without starting a vendor or contacting the network.
@@ -176,6 +184,12 @@ func (m *Manager) status(ctx context.Context, allowStart bool) protocol.Status {
 		}
 	}
 	raw, _ := json.Marshal(response.Account)
+	if m.borrowed && !samePrincipal(m.identity, response.Account) {
+		// Native session approvals belong to this account context. Recreate
+		// the owned process before another account can use borrowed threads.
+		m.closeClient()
+		return m.status(ctx, true)
+	}
 	if m.identity != string(raw) {
 		m.identity = string(raw)
 		m.revision.Add(1)
@@ -197,6 +211,14 @@ func (m *Manager) status(ctx context.Context, allowStart bool) protocol.Status {
 }
 
 func (m *Manager) start(ctx context.Context) (protocol.Status, bool) {
+	if m.retiring != nil {
+		select {
+		case <-m.retiring.Done():
+			m.retiring = nil
+		case <-ctx.Done():
+			return m.state(protocol.StateError, "Previous Codex process is stopping"), false
+		}
+	}
 	path, err := m.deps.find(m.cfg)
 	if err != nil {
 		return m.state(protocol.StateNotInstalled, "Codex executable not found"), false
@@ -208,7 +230,7 @@ func (m *Manager) start(ctx context.Context) (protocol.Status, bool) {
 	}
 	m.binary.Version = v
 	if !procx.AtLeast(v, minimumVersion) {
-		return m.state(protocol.StateOutdated, "Codex 0.122.0 or newer is required"), false
+		return m.state(protocol.StateOutdated, "Codex "+minimumVersion+" or newer is required"), false
 	}
 	if err := m.cfg.prepare(); err != nil {
 		return m.state(protocol.StateError, "Cannot prepare Codex data directory"), false
@@ -217,16 +239,19 @@ func (m *Manager) start(ctx context.Context) (protocol.Status, bool) {
 	// Cancelling a start wait must nevertheless stop its incomplete handshake.
 	startCtx, startCancel := context.WithCancel(m.ctx)
 	stop := context.AfterFunc(ctx, startCancel)
-	c, err := m.deps.start(startCtx, appserver.Options{Path: path, Dir: m.cfg.dataDir, Env: m.cfg.environment(), Secrets: []string{m.cfg.key}, InitializeTimeout: m.deps.timeout, Peer: appserver.PeerOptions{Redactor: m.redactor, Notifications: map[string]appserver.Notification{"account/updated": m.accountEvent, "account/login/completed": m.loginEvent}}})
+	m.generation++
+	c, err := m.deps.start(startCtx, appserver.Options{Path: path, Dir: m.cfg.dataDir, Env: m.cfg.environment(), Secrets: []string{m.cfg.key}, InitializeTimeout: m.deps.timeout, Peer: m.peerOptions()})
 	if !stop() || ctx.Err() != nil {
 		startCancel()
 		if c != nil {
 			_ = c.Close(context.Background())
 		}
+		m.stopGeneration()
 		return m.state(protocol.StateError, "Codex startup cancelled"), false
 	}
 	if err != nil {
 		startCancel()
+		m.stopGeneration()
 		return m.state(protocol.StateError, "Cannot start Codex app-server"), false
 	}
 	m.client = c
@@ -249,11 +274,30 @@ func (m *Manager) state(state protocol.StatusState, message string) protocol.Sta
 }
 
 func maskedEmail(email *string) string {
-	if email == nil || *email == "" {
+	if email == nil || len(*email) > 254 || strings.ContainsAny(*email, "\r\n\x00\"<>") {
 		return "ChatGPT account"
 	}
-	// Keep no part of a potentially malformed external identity in host-visible labels.
-	return "***@***"
+	parsed, err := mail.ParseAddress(*email)
+	if err != nil || parsed.Address != *email {
+		return "ChatGPT account"
+	}
+	local, domain, ok := strings.Cut(*email, "@")
+	if !ok || local == "" || domain == "" {
+		return "ChatGPT account"
+	}
+	first, _ := utf8.DecodeRuneInString(local)
+	return string(first) + "***@" + domain
+}
+
+func samePrincipal(previous string, current *schema.Account) bool {
+	var old *schema.Account
+	if json.Unmarshal([]byte(previous), &old) != nil || old == nil || current == nil {
+		return false
+	}
+	if old.Type != current.Type || (old.Email == nil) != (current.Email == nil) {
+		return false
+	}
+	return old.Email == nil || *old.Email == *current.Email
 }
 
 func (m *Manager) remember(st protocol.Status, notify bool) {
@@ -269,7 +313,9 @@ func (m *Manager) remember(st protocol.Status, notify bool) {
 }
 
 func (m *Manager) reset() {
+	m.stopGeneration()
 	m.client = nil
+	m.borrowed = false
 	m.pending = ""
 	m.loginFailed = false
 	m.keyApplied = false
@@ -289,7 +335,7 @@ func (m *Manager) Close(ctx context.Context) error {
 }
 
 func unavailable(message string) error {
-	return protocol.NewError(protocol.ErrProviderError, message, nil)
+	return protocol.NewError(protocol.ErrProviderError, message, map[string]any{"vendorCode": "connection_error"})
 }
 
 var errAction = errors.New("action is unavailable for this connection")

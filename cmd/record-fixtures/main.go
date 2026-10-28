@@ -18,6 +18,12 @@ import (
 
 func main() {
 	logger := logx.New("record-fixtures")
+	if len(os.Args) == 3 && os.Args[1] == "isolation-marker" {
+		if err := spike.IsolationMarker(os.Args[2]); err != nil {
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "mcp-fixture" {
 		if err := spike.ServeMCP(context.Background(), os.Stdin, os.Stdout); err != nil {
 			logger.Error("MCP fixture stopped")

@@ -1,0 +1,16 @@
+{
+  "arch": "arm64",
+  "candidate": "config-isolation-array",
+  "completed": false,
+  "coverage": "private-home startup only; no account or model turn; hooks/plugin/resume not certified",
+  "home": "private",
+  "lateSource": "owned synthetic project configuration",
+  "mcpAfterPreflightObserved": false,
+  "os": "darwin",
+  "recordedAt": "2026-10-28T11:54:47Z",
+  "sanitization": "in-memory before persistence",
+  "scenario": "config-isolation-array",
+  "schemaVersion": "0.164.0",
+  "securityGatePassed": false,
+  "version": "0.164.0"
+}

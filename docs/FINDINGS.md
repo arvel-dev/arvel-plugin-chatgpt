@@ -549,3 +549,285 @@ portability fixes; production environment/process behavior and SDK code remain
 unchanged. The existing G0 environment test already uses normalized names.
 Native PR CI, rather than cross-compilation or POSIX directory removal, is the
 Windows regression check.
+
+## G3 — Session isolation preflight blocker
+
+**Observed on 2026-10-28, Codex 0.164.0, macOS arm64.** Session runtime remains
+unimplemented. The first G3 safety gate rejected the proposed effective-config
+preflight and per-name MCP suppression recipe. This is independent of the
+previously deferred M5c host sandbox matrix.
+
+The development recorder now has two fixed private-home scenarios:
+`config-isolation` and `config-isolation-race`. They create their own disposable
+CODEX_HOME and project configuration with harmless marker executables. They do
+not use shared authentication, read credential files, sign in, or send a model
+turn. Both intentionally return failure rather than certify incomplete isolation.
+
+The committed real `config-isolation-race` capture establishes this sequence:
+
+1. `config/read {cwd, includeLayers:false}` exposes the synthetic global and
+   project MCP definitions.
+2. The client builds `enabled:false` overrides for those names, plus disabled
+   plugin defaults, `features.hooks:false`, `notify:[]` and read-only/native
+   sandbox controls.
+3. The probe appends a **new** `late_probe` MCP definition to its own project
+   config after preflight and before `thread/start`.
+4. The real app-server accepts `thread/start`, and the new server executes the
+   owned marker binary without an ACP/plugin command approval. The original
+   known global/project marker files remain absent at the check. A subsequent
+   `config/read` includes the new definition.
+
+The metadata records `mcpAfterPreflightObserved:true`,
+`securityGatePassed:false` and `completed:false`. The first value is an actual
+owned-file observation by the recorder, not an invented wire notification.
+The transcript is real app-server traffic and passes offline schema/correlation
+validation. Synthetic helper tests establish the recorder's failure behavior;
+they are not substitutes for that real executable observation. Temporary paths
+are redacted before persistence and the temporary directory/process tree is
+owned and cleaned up by the existing recorder.
+
+This is a configuration read/start race: per-name suppression cannot prevent a
+new inherited name from being loaded between the two requests. It also applies
+to private login mode because project configuration is independent of
+CODEX_HOME. Repeating the same enumeration does not make these operations
+atomic. No authenticated model turn, hook execution, plugin-source coverage,
+persisted resume, historical-version or native Windows/Linux isolation success
+is claimed.
+
+Source inspection at `6aaac694803004a63c6f393d153c96d22521a6b9` agrees with the
+observation: `config/src/merge.rs` recursively merges tables, so an empty
+`mcp_servers` table does not clear inherited entries. Config loading and
+`ConfigManager::read` are separate from thread startup. `hooks` is a stable
+feature, but legacy notify is separately passed into `HooksConfig` and plugin
+hook sources have their own activation. Disabling only ordinary hooks is not a
+complete suppression recipe. The inspected `codex app-server --help` exposes no
+ignore-user/project-config flag. LoaderOverrides contains those controls, but
+`load_default_config` uses them as an internal fallback; no supported public
+atomic exclusion path has been established. Do not turn internal/debug-only
+loader controls or malformed-configuration fallback into a production API.
+
+Reproduce with a new output directory (the nonzero exit and explicit race
+finding are expected):
+
+```sh
+ARVEL_E2E=1 go run ./cmd/record-fixtures record \
+  --scenario config-isolation-race --home private \
+  --schema testdata/schema/0.164.0 \
+  --out /tmp/arvel-g3-isolation-reproduction --timeout 30s
+```
+
+G3 Task 1 remains blocked. Per the approved plan, do not enable sessions, proceed
+to dependent runtime tasks, mark G3 done, or claim that the host sandbox makes
+unassigned MCP execution acceptable. A supported atomic configuration-exclusion
+mechanism must be established and verified, or a concrete product/security
+contract change must be explicitly approved before the affected implementation.
+No SDK, immutable brief, host policy or production provider behavior was changed
+for this experiment.
+
+### Follow-up: stable isolation alternatives and a concrete product choice
+
+The owner authorized a further search rather than treating the failed per-name
+recipe as proof that every integration is impossible. The immutable brief and
+production provider remain unchanged.
+
+Current official documentation was fetched on 2026-10-28:
+
+- [Configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference):
+  `projects.<path>.trust_level` skips project `.codex/` configuration, hooks and
+  rules when untrusted; MCP enablement is per server.
+- [Advanced configuration](https://learn.chatgpt.com/docs/config-file/config-advanced):
+  user/system layers still load for an untrusted project; profiles add a layer
+  over base user config; CODEX_HOME contains configuration and file-backed
+  authentication state together.
+- [App-server reference](https://learn.chatgpt.com/docs/app-server): compared with
+  the actual default-generated thread start/resume schemas. Documentation is
+  current guidance; measured results below identify the exact CLI version.
+
+The following private-home probes use real CLI execution with synthetic owned
+user/project configuration. They do not access the person's actual shared home,
+perform a login or send a model turn. Nonzero exit remains intentional because
+none certifies the complete G3 security gate:
+
+| Candidate | Recording | Observation |
+|---|---|---|
+| `mcp_servers:{}` | `config-isolation-empty` / 0.164.0 | A known inherited marker executable ran; metadata records `inheritedExecutableObserved:true`. Empty tables do not clear inherited definitions. |
+| `mcp_servers:null` | `config-isolation-null` / 0.164.0 | thread/start rejects an empty string where a map is required. Pinned json_to_toml converts JSON null into an empty TOML string. No runnable isolated session results. |
+| `mcp_servers:[]` | `config-isolation-array` / 0.164.0 | thread/start rejects a sequence where a map is required. |
+| Atomically mark cwd untrusted, then add project MCP | `config-isolation-untrusted-project` / 0.164.0 | thread/start succeeds; the late project marker is absent during the five-second startup observation. This supports project-layer exclusion, not complete user/hook/turn/resume isolation. |
+| Untrusted cwd, then add user MCP | `config-isolation-untrusted-user` / 0.164.0 | The late owned user-config marker executes. Project trust does not exclude user configuration. |
+| Same user-config race on newer official package | `config-isolation-untrusted-user-0165` / 0.165.0 | The late owned marker again executes. Updating to 0.165.0 alone does not fix the measured recipe. |
+
+The untrusted candidate must enumerate **user-only** config with config/read
+without cwd, then set the project trust override. Disabling project-only names
+from an earlier cwd-aware read while excluding their underlying project layer
+creates transport-less MCP definitions and is rejected. Initial failed attempts
+established that detail; the committed untrusted recordings use the corrected
+user-only preflight and have accepted thread/start responses.
+
+The official npm 0.165.0 package was installed under a disposable `/tmp` prefix
+with install scripts disabled. Its package metadata identifies the native binary
+as `vendor/aarch64-apple-darwin/bin/codex`. The initial guessed older layout did
+not launch a version probe and generated no capture; the metadata-resolved path
+was used for the actual measurements. The user's installed CLI remains 0.164.0.
+A fresh private-home default schema generation for 0.165.0 was compared in `/tmp`:
+ThreadStartParams, ThreadResumeParams and InitializeParams add no new top-level
+fields relative to the committed 0.164.0 schemas. CLI help likewise supplies no
+ignore-user/project-config switch. The committed 0.165.0 capture was deliberately
+recorded and validated against the committed 0.164.0 schema; its metadata says
+`version:0.165.0`, `schemaVersion:0.164.0`. This establishes compatibility of that
+specific transcript, not a full version/platform certification or an unchanged
+entire schema. No temporary generated schema is promoted to the repository.
+
+Pinned source provides further boundaries:
+
+- The `codex app-server` CLI passes `LoaderOverrides::default()`; public profile
+  configuration is additive, not a replacement for the base user file.
+- User/project ignore controls and managed-requirements path overrides exist in
+  Rust loader APIs/test helpers, but are not thereby public app-server controls.
+- `features.plugins:false` is stable in 0.164.0 and can disable plugin activation
+  independently of per-plugin names. Ordinary hooks and legacy notify still need
+  their respective controls. There is no established general MCP disable flag in
+  the inspected stable feature list.
+- Managed MCP allowlists can enforce a stronger boundary, but their system/MDM
+  sources are administrator-owned. This plugin must not alter `/etc`, spoof
+  enterprise policy or use debug-only paths to make a session pass.
+- Post-start config validation is too late to prevent already observed startup
+  execution. Repeated preflight reads do not make startup atomic.
+
+**Proposed product decision — not yet approved or implemented:** continue G3
+agent-session work only for ChatGPT connections with separateLogin:true and for
+API-key connections, using plugin-owned private CODEX_HOME plus the project
+trust exclusion and verified runtime controls. Do not import/copy shared
+credentials or silently turn the user's existing shared login into a private
+one. Shared-home connections retain G2 status/models/authentication behavior;
+NewSession/LoadSession must explicitly explain that a separate Arvel sign-in is
+required. Full start/turn/resume, hooks, managed-policy and historical-version
+checks still have to pass before enabling even this candidate in production.
+A private home alone is insufficient: the original race was project-scoped.
+
+This changes SPEC's shared-login session behavior and therefore requires the
+owner's explicit choice, unlike routine method/field compatibility adaptation.
+If shared-login agent sessions must remain mandatory, the verified candidate is
+insufficient: keep runtime gated and seek a supported vendor contract that can
+exclude or atomically replace inherited executable configuration while retaining
+normal authentication. Such a vendor request would need tests for initial
+start, resume, newly added user/project names, plugin/hooks, and concurrent
+threads; no hypothetical flag or field is currently sent by this plugin. This
+follow-up does not assert that all conceivable integration methods are
+impossible and does not claim G3 complete.
+
+### Owner approval: private onboarding and SDK settings
+
+The owner approved required sign-in through Arvel or an API key and explicitly
+asked to persist this in project rules/context. New ChatGPT connections now
+default to private CODEX_HOME, and the manifest no longer offers shared-login
+configuration for new connections. Legacy explicit separateLogin:false remains
+parsable for G2 status/catalog migration but cannot be used for agent sessions.
+No existing credentials are read, copied or silently migrated. An unauthenticated
+connection reports needs_login and its public browser/device-code action; the
+API-key field remains a required manifest secret supplied by Arvel.
+
+SDK v0.1.2 supplies connections.config/secrets, Status (including Account),
+Actions and status_changed. These are host-rendered connection settings/card
+contracts, not an arbitrary plugin-owned settings webpage API. No custom UI or
+new host protocol is added. The account label now retains a validated masked
+local-part prefix/domain so different accounts can be recognized without
+exposing their full email or logging identity. The native fakevendor/SDK test
+checks new-connection private defaults, signed-out setup, login completion and
+host-visible masked account status; account failures/retries retain G2's ordering
+and deduplication regressions.
+
+`config-isolation-private` completed a real 0.164.0/macOS arm64 thread/start,
+two completed turns and a resume after thread/unsubscribe. It uses a fresh owned
+home, atomically untrusted project, disabled hooks/plugins, empty notify and
+native read-only/network controls. A new project MCP definition is inserted
+after preflight; no global/project/late/notify marker executes. The model backend
+is a bounded owned loopback Responses fixture derived from upstream test event
+shapes. The metadata explicitly distinguishes real CLI lifecycle behavior from
+that synthetic backend. No real account, OpenAI model, cost, other native OS or
+M5c host sandbox certification is claimed. The transcript passes the committed
+0.164.0 schema/correlation checks. This closes the revised private-home G3
+configuration gate, not the rejected shared-home recipe or the entire milestone.
+
+The runtime requirement is conservatively raised to Codex 0.164.0, the version
+with the measured private lifecycle and stable hooks/plugins controls used here.
+The 0.122.0 finding remains the historical schema-interface floor; it did not
+certify these later runtime controls. No claim is made that 0.164.0 is the first
+release technically capable of isolation. Older binaries now report outdated
+with an actionable minimum rather than enabling unverified session controls.
+The SDK version and immutable brief remain unchanged.
+
+G3 mapping/policy reconciliation: ACP Diff represents whole-file old/new text,
+not arbitrary unified hunks. Observed additions/deletions can use it directly;
+other hunks are retained as textual tool content with path locations, and the
+final unified diff stays on the last nested update metadata. Pinned core
+`tools/orchestrator.rs` can retry approved commands without its original native
+sandbox, so approval evaluation combines possible edit/network authority with
+command rules; command allow patterns never override those denials. The plugin
+still never sends a native sandbox bypass mode or persistent amendment.
+
+### G3 managed configuration preflight
+
+Codex 0.164.0 stable `configRequirements/read` was recorded in the successful private-home synthetic-backend lifecycle capture. It returns explicit `requirements:null` in the measured unmanaged environment. G3 refuses non-null/missing requirements and managed/unknown config origins rather than interpreting experimental managed fields or overriding administrator controls. User-only `config/read` must expose origins and no inherited MCP/custom provider. Both start and resume receive the same private-home/project-untrusted/hook/plugin/notify/native-sandbox recipe. Cwd must resolve to an existing directory outside (and not containing) private CODEX_HOME. The recording validator now maps this parameterless request to its explicit response schema; offline validation passes.
+
+### G3 session lifecycle and host bridge
+
+The plugin now borrows one generation-scoped connection process for all threads.
+Notification queues and early-thread staging are bounded; overflow retires the
+generation. Resume reserves the thread route before the vendor RPC, preventing a
+duplicate local session from mutating another live thread. Only the exact recorded
+`-32600: no rollout found for thread id <id>` condition can replace a locally known
+empty thread. Once turn delivery is attempted, replacement is forbidden; ambiguous
+prompts are never replayed. ACP identity remains stable across a permitted empty
+replacement. SDK idle close uses stable `thread/unsubscribe` (recorded by the
+private lifecycle probe); subsequent reload retains the in-memory vendor mapping,
+next-turn options and local turn count. In-process recovery descriptors take
+precedence over the SDK tombstone's original model/effort metadata; use SetOption
+to change a retained conversation. At most 128 conversation descriptors are kept
+per provider lifetime, matching the router's bounded capacity. No history/counter
+reconstruction across plugin restarts is claimed.
+
+Command escalation evaluates command, edit and network policy together because
+pinned vendor source can retry an approved command without its native sandbox.
+The host prompt explains this scope; deny wins before any host request. File
+approvals require observed item paths, resolved existing ancestors and workspace
+scope, with private-home overlap excluded. `grantRoot` alone never proves scope.
+An independent `config/read` response establishes the SDK's earlier-notification
+callback barrier before file metadata lookup. Native session decisions are used;
+there is no plugin approval cache. Permissions profiles remain an empty grant at
+runtime; the finite-scope grant encoder exists only in test code. MCP elicitation
+remains a method-correct decline. No experimental producer or amendment is enabled.
+
+SDK-wire tests use a synthetic child process to verify early notifications,
+stream/final-diff ordering, command/file decision choices, explicit cancel after
+actual reply writes, a streaming sibling while the host approval is pending,
+process crash/resume without prompt replay, and idle reload preserving changed
+reasoning effort and turn budget. These are host-protocol tests, not real account,
+OpenAI model, spend, Windows native sandbox or Arvel M5c certification.
+
+G3 review hardening: bounded caches count identifier bytes and path slot overhead,
+not only path text. The transport also caps outstanding server requests and
+registered notification backlogs before SDK dispatch (count/key/byte bounds),
+with generation failure on overflow. This prevents the SDK's independently
+scheduled handlers/notification queues from becoming an unbounded buffer in
+front of the session router. Regression tests reproduce both pre-fix resource
+budget bypasses; focused race tests pass after the fix. SDK-shaped provider
+errors also carry the required safe vendorCode; no raw upstream error is exposed.
+
+G3 network reconciliation: pinned stable Config.web_search accepts `disabled`;
+core/src/tools/hosted_spec.rs returns no hosted web tool in Disabled mode. Hosted
+search otherwise bypasses the native command approval boundary, so ask/deny
+network policies now explicitly disable it on both start and resume. The real
+0.164.0 private synthetic lifecycle probe records this override and inspects only
+the synthetic Responses tool types, refusing any web_search tool in either turn.
+Both turns and resume passed; no real OpenAI account or model was used. Network
+allow retains the vendor default web mode. Native network approvals remain
+method-specific; no unsupported hosted-web permission flow is invented.
+
+G3 authorization-context hardening: successful private logout closes the borrowed
+process and retires every thread/native session grant. When account/read observes
+a different account principal (type/email, excluding plan-only changes) while a
+runtime has been borrowed, the manager recreates the generation before it can
+serve sessions for the new account. This leaves failed replacement-login account
+preservation intact and requires fresh authorized acquisition on recovery. Both
+logout and principal-change regressions were reproduced and verified offline.

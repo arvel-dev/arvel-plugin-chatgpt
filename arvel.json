@@ -37,7 +37,7 @@
   "requires": [
     {
       "binary": "codex",
-      "minVersion": "0.122.0",
+      "minVersion": "0.164.0",
       "versionArgs": [
         "--version"
       ],
@@ -76,18 +76,13 @@
       "kind": "chatgpt",
       "label": "ChatGPT plan (via Codex CLI)",
       "billing": "subscription",
-      "description": "Uses Codex signed in with your ChatGPT account (Plus, Pro, Business, Enterprise, Edu).",
+      "description": "Sign in with ChatGPT for Arvel. Uses an isolated Codex login; your personal Codex session is not reused.",
       "config": {
         "type": "object",
         "properties": {
           "codexPath": {
             "type": "string",
             "title": "Path to codex (leave empty to auto-detect)"
-          },
-          "separateLogin": {
-            "type": "boolean",
-            "default": false,
-            "title": "Use a separate Codex sign-in just for Arvel"
           }
         }
       },

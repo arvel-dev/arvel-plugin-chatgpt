@@ -48,3 +48,34 @@ ChatGPT account with account/read. Temporary private state is removed on exit.
 Use a sufficiently long --timeout and never redirect the challenge into a file.
 Synthetic-key environment/private-account probes do not verify remote API-key
 authentication or spend; their metadata/scenario names distinguish them.
+
+### Session isolation preflight failure
+
+`config-isolation-race` is a real Codex 0.164.0 private-home recording, with no
+account/model operation. It deliberately adds an owned project MCP definition
+between `config/read` and `thread/start`. The new server executes a harmless
+marker despite per-name disable overrides built from the previous read.
+Metadata records that file observation separately from RPC traffic, and marks
+both probe completion and the security gate false. The recording command is
+expected to exit nonzero; see FINDINGS “G3 — Session isolation preflight blocker”.
+The `config-isolation` startup-only scenario also refuses to certify untested
+hooks, plugin sources, completed turns or persisted resume. Neither scenario
+honors `--home shared`. Marker executables only create a new `isolation-*.sentinel`
+file and never overwrite an existing path.
+
+The follow-up isolation fixtures compare empty/null/array root replacement,
+untrusted project configuration, and a late user-config definition. All retain
+`securityGatePassed:false`. `config-isolation-untrusted-project` is only a bounded
+startup observation; its missing marker is not certified end-to-end isolation.
+`config-isolation-untrusted-user-0165` is real official Codex 0.165.0 traffic,
+recorded against the committed 0.164.0 validation schema as its metadata states.
+The executable/configuration inputs remain synthetic and private to each probe;
+no real account or model was used. See FINDINGS for the outcome matrix and the
+unapproved private-session product proposal.
+
+`config-isolation-private` is the successful revised private-home lifecycle gate:
+real Codex starts a thread, completes two turns and resumes an unloaded thread
+without executing the owned project/notify sentinels. Its model responses come
+from a synthetic loopback fixture and require no account or OpenAI model usage.
+Its successful gate label applies only to that explicitly scoped configuration
+measurement, not to full G3 completion or production host compatibility.

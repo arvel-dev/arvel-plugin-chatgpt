@@ -119,6 +119,9 @@ func LoadBundle(ctx context.Context, dir string) (*Bundle, error) {
 			if name == "ClientRequest.json" && method.Enum[0] == "account/logout" {
 				m.Response = b.files["LogoutAccountResponse.json"]
 			}
+			if name == "ClientRequest.json" && method.Enum[0] == "configRequirements/read" {
+				m.Response = b.files["ConfigRequirementsReadResponse.json"]
+			}
 			b.methods[key] = m
 		}
 	}

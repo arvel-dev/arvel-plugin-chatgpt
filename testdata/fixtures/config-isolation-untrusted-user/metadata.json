@@ -1,0 +1,16 @@
+{
+  "arch": "arm64",
+  "candidate": "config-isolation-untrusted-user",
+  "completed": false,
+  "coverage": "private-home startup only; no account or model turn; hooks/plugin/resume not certified",
+  "home": "private",
+  "lateSource": "owned synthetic user configuration",
+  "mcpAfterPreflightObserved": true,
+  "os": "darwin",
+  "recordedAt": "2026-10-28T11:55:33Z",
+  "sanitization": "in-memory before persistence",
+  "scenario": "config-isolation-untrusted-user",
+  "schemaVersion": "0.164.0",
+  "securityGatePassed": false,
+  "version": "0.164.0"
+}

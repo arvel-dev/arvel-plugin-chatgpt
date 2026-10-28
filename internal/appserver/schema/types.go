@@ -111,6 +111,7 @@ type AccountUpdated struct {
 // ThreadStartParams contains only source-verified stable overrides.
 type ThreadStartParams struct {
 	Model                 *string        `json:"model,omitempty"`
+	ModelProvider         *string        `json:"modelProvider,omitempty"`
 	CWD                   string         `json:"cwd"`
 	ApprovalPolicy        string         `json:"approvalPolicy"`
 	Sandbox               string         `json:"sandbox"`
@@ -121,7 +122,14 @@ type ThreadStartParams struct {
 
 // ThreadResumeParams selects an already persisted thread.
 type ThreadResumeParams struct {
-	ThreadID string `json:"threadId"`
+	ThreadID              string         `json:"threadId"`
+	CWD                   string         `json:"cwd,omitempty"`
+	Model                 *string        `json:"model,omitempty"`
+	ModelProvider         *string        `json:"modelProvider,omitempty"`
+	ApprovalPolicy        string         `json:"approvalPolicy,omitempty"`
+	Sandbox               string         `json:"sandbox,omitempty"`
+	DeveloperInstructions *string        `json:"developerInstructions,omitempty"`
+	Config                map[string]any `json:"config,omitempty"`
 }
 
 // UserInput covers text and stable image/skill inputs without experimental auth.

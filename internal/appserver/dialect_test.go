@@ -13,7 +13,7 @@ import (
 )
 
 func reader(raw string) *liteReader {
-	return &liteReader{scanner: jsonl.NewScanner(strings.NewReader(raw), 0), state: &dialect{active: map[string]bool{}}}
+	return &liteReader{scanner: jsonl.NewScanner(strings.NewReader(raw), 0), state: &dialect{active: map[string]*pendingResponse{}}}
 }
 func TestDialect_PreservesEnvelopeAndIntegerIDs(t *testing.T) {
 	for _, line := range []string{`{"id":9007199254740993,"result":{"text":"<safe>"}}`, `{"jsonrpc":"2.0","id":"server","method":"approve","params":{}}`} {
@@ -67,7 +67,7 @@ type shortWriter struct{}
 
 func (shortWriter) Write([]byte) (int, error) { return 0, nil }
 func TestDialect_PropagatesShortWrites(t *testing.T) {
-	w := liteWriter{output: shortWriter{}, state: &dialect{active: map[string]bool{}}}
+	w := liteWriter{output: shortWriter{}, state: &dialect{active: map[string]*pendingResponse{}}}
 	if _, err := w.Write([]byte(`{"jsonrpc":"2.0","method":"initialized"}`)); !errors.Is(err, io.ErrShortWrite) {
 		t.Fatal(err)
 	}

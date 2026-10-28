@@ -85,7 +85,7 @@ func Run(ctx context.Context, o RunOptions) error {
 		if !knownScenario(o.Scenario) {
 			return errors.New("unknown fixed scenario")
 		}
-		if (o.Scenario == "device-cancel" || o.Scenario == "device-login" || strings.HasPrefix(o.Scenario, "env-") || o.Scenario == "private-api-key") && o.Home != "private" {
+		if (strings.HasPrefix(o.Scenario, "config-isolation") || o.Scenario == "device-cancel" || o.Scenario == "device-login" || strings.HasPrefix(o.Scenario, "env-") || o.Scenario == "private-api-key") && o.Home != "private" {
 			return errors.New("login probes require a private home")
 		}
 		if _, err := os.Stat(o.Out); err == nil {
@@ -120,6 +120,19 @@ func Run(ctx context.Context, o RunOptions) error {
 	if o.Mode != "schema" && o.Home == "shared" {
 		privateHome = ""
 	}
+	if strings.HasPrefix(o.Scenario, "config-isolation") {
+		binary, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		prepare := prepareIsolation
+		if o.Scenario == "config-isolation-private" {
+			prepare = preparePrivateIsolation
+		}
+		if err := prepare(home, scratch, binary); err != nil {
+			return err
+		}
+	}
 	env := probeEnvironment(privateHome, "")
 	if o.Scenario == "env-openai" {
 		env = append(env, "OPENAI_API_KEY=synthetic-not-a-real-key", "OPENAI_BASE_URL=http://127.0.0.1:1")
@@ -144,7 +157,23 @@ func Run(ctx context.Context, o RunOptions) error {
 		err = requiredObservation(entries, o.Scenario)
 	}
 	if len(entries) > 0 {
-		if saveErr := saveRecording(o.Out, entries, map[string]any{"version": version, "schemaVersion": filepath.Base(o.Schema), "os": runtime.GOOS, "arch": runtime.GOARCH, "scenario": o.Scenario, "home": o.Home, "recordedAt": time.Now().UTC().Format(time.RFC3339), "sanitization": "in-memory before persistence", "completed": err == nil}); saveErr != nil {
+		metadata := map[string]any{"version": version, "schemaVersion": filepath.Base(o.Schema), "os": runtime.GOOS, "arch": runtime.GOARCH, "scenario": o.Scenario, "home": o.Home, "recordedAt": time.Now().UTC().Format(time.RFC3339), "sanitization": "in-memory before persistence", "completed": err == nil}
+		if strings.HasPrefix(o.Scenario, "config-isolation") {
+			metadata["securityGatePassed"] = o.Scenario == "config-isolation-private" && err == nil
+			metadata["mcpAfterPreflightObserved"] = errors.Is(err, errIsolationRace)
+			metadata["inheritedExecutableObserved"] = errors.Is(err, errIsolationInherited)
+			metadata["candidate"] = o.Scenario
+			if o.Scenario == "config-isolation-untrusted-user" {
+				metadata["lateSource"] = "owned synthetic user configuration"
+			} else {
+				metadata["lateSource"] = "owned synthetic project configuration"
+			}
+			metadata["coverage"] = "private-home startup only; no account or model turn; hooks/plugin/resume not certified"
+			if o.Scenario == "config-isolation-private" {
+				metadata["coverage"] = "real CLI start, two turns and unloaded-thread resume; synthetic loopback model backend; no account/OpenAI/model-spend or actual host sandbox certification"
+			}
+		}
+		if saveErr := saveRecording(o.Out, entries, metadata); saveErr != nil {
 			return saveErr
 		}
 	}
@@ -229,7 +258,7 @@ func requiredObservation(entries []Entry, scenario string) error {
 	return errors.New("required feature observation was not emitted; completed turn alone is insufficient")
 }
 
-var scenarioNames = []string{"handshake", "handshake-jsonrpc", "preinitialize", "account", "models", "limits", "thread", "text", "reasoning", "interrupt", "edit-read-only", "edit-workspace", "edit-accept", "edit-session", "edit-cancel", "resume", "image", "plan", "plan-enabled", "command", "command-approval", "web", "mcp", "subagent", "subagent-v1", "subagent-enabled", "subagent-persistent", "subagent-capacity", "subagent-complete", "instructions", "skills", "skills-explicit", "skills-selected", "failed", "env-stripped", "env-openai", "env-codex", "private-api-key", "device-cancel", "device-login", "network-allow", "network-deny"}
+var scenarioNames = []string{"config-isolation", "config-isolation-private", "config-isolation-race", "config-isolation-empty", "config-isolation-null", "config-isolation-array", "config-isolation-untrusted-project", "config-isolation-untrusted-user", "handshake", "handshake-jsonrpc", "preinitialize", "account", "models", "limits", "thread", "text", "reasoning", "interrupt", "edit-read-only", "edit-workspace", "edit-accept", "edit-session", "edit-cancel", "resume", "image", "plan", "plan-enabled", "command", "command-approval", "web", "mcp", "subagent", "subagent-v1", "subagent-enabled", "subagent-persistent", "subagent-capacity", "subagent-complete", "instructions", "skills", "skills-explicit", "skills-selected", "failed", "env-stripped", "env-openai", "env-codex", "private-api-key", "device-cancel", "device-login", "network-allow", "network-deny"}
 
 // Scenarios returns the fixed development probe names supported by this tool.
 func Scenarios() []string { return append([]string(nil), scenarioNames...) }
@@ -372,6 +401,7 @@ type wireMessage struct {
 
 type peer struct {
 	redactor        *redact.Redactor
+	scrubKeys       bool
 	input           *io.PipeWriter
 	read            <-chan json.RawMessage
 	readErr         <-chan error
@@ -446,13 +476,30 @@ func recordWithDeviceCode(ctx context.Context, spec procx.Spec, b *Bundle, scena
 		_ = outR.Close()
 		wg.Wait()
 	}()
-	peer := &peer{input: inW, read: read, readErr: readErr, bundle: b, entries: entries, serverIDs: map[string]bool{}, approvedFiles: map[string]bool{}, cwd: spec.Dir, decision: "decline", deviceCode: deviceCode}
+	rd := redact.New()
+	if strings.HasPrefix(scenario, "config-isolation") {
+		rd.Add(spec.Dir)
+		if binary, err := os.Executable(); err == nil {
+			rd.Add(binary)
+		}
+		if canonical, err := filepath.EvalSymlinks(spec.Dir); err == nil {
+			rd.Add(canonical)
+		}
+	}
+	peer := &peer{redactor: rd, scrubKeys: strings.HasPrefix(scenario, "config-isolation"), input: inW, read: read, readErr: readErr, bundle: b, entries: entries, serverIDs: map[string]bool{}, approvedFiles: map[string]bool{}, cwd: spec.Dir, decision: "decline", deviceCode: deviceCode}
 	return peer.scenario(ctx, scenario, spec.Dir)
 }
 
 func (p *peer) capture(direction string, raw json.RawMessage) error {
 	if p.redactor == nil {
 		p.redactor = redact.New()
+	}
+	if p.scrubKeys {
+		var err error
+		raw, err = redactIsolationKeys(raw, p.redactor)
+		if err != nil {
+			return err
+		}
 	}
 	clean, err := sanitizeWithRedactor(raw, p.redactor)
 	if err != nil {
@@ -647,6 +694,12 @@ func (p *peer) scenario(ctx context.Context, scenario, cwd string) error {
 	}
 	if err := p.send(map[string]any{"method": "initialized"}); err != nil {
 		return err
+	}
+	if scenario == "config-isolation-private" {
+		return p.privateIsolation(ctx, cwd)
+	}
+	if strings.HasPrefix(scenario, "config-isolation") {
+		return p.isolation(ctx, cwd, scenario)
 	}
 	selectedSkillPath := filepath.Join(cwd, ".agents", "skills", "arvel-probe", "SKILL.md")
 	if scenario == "skills" || scenario == "skills-explicit" || scenario == "skills-selected" {
