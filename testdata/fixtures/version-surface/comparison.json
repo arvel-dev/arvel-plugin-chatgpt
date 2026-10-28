@@ -1,0 +1,57 @@
+{
+  "provenance": "actual default schema generations on headless Linux arm64; not an RPC transcript",
+  "introducingCommit": "139fa8b8f25408aeb3edea3ef50e1a8b3e3ff354",
+  "samples": [
+    {
+      "version": "0.115.0",
+      "missing": [
+        "chatgptDeviceCode",
+        "rateLimitReachedType"
+      ],
+      "os": "linux",
+      "arch": "arm64",
+      "source": "locally generated default JSON schema"
+    },
+    {
+      "version": "0.122.0",
+      "missing": [],
+      "os": "linux",
+      "arch": "arm64",
+      "source": "locally generated default JSON schema"
+    },
+    {
+      "version": "0.129.0",
+      "missing": [],
+      "os": "linux",
+      "arch": "arm64",
+      "source": "locally generated default JSON schema"
+    },
+    {
+      "version": "0.118.0",
+      "missing": [
+        "rateLimitReachedType"
+      ],
+      "os": "linux",
+      "arch": "arm64",
+      "source": "locally generated default JSON schema"
+    },
+    {
+      "version": "0.120.0",
+      "missing": [
+        "rateLimitReachedType"
+      ],
+      "os": "linux",
+      "arch": "arm64",
+      "source": "locally generated default JSON schema"
+    },
+    {
+      "version": "0.121.0",
+      "missing": [
+        "rateLimitReachedType"
+      ],
+      "os": "linux",
+      "arch": "arm64",
+      "source": "locally generated default JSON schema"
+    }
+  ]
+}

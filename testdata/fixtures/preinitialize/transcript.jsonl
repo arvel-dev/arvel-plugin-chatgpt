@@ -1,0 +1,5 @@
+{"direction":"client_to_server","message":{"id":1,"method":"account/read","params":{"refreshToken":false}}}
+{"direction":"server_to_client","message":{"error":{"code":-32600,"message":"Not initialized"},"id":1}}
+{"direction":"client_to_server","message":{"id":2,"method":"initialize","params":{"clientInfo":{"name":"arvel","title":"Arvel","version":"0.1.0"}}}}
+{"direction":"server_to_client","message":{"id":2,"result":{"codexHome":"/scratch","platformFamily":"unix","platformOs":"macos","userAgent":"arvel/0.164.0 (Mac OS 26.5.2; arm64) dumb (arvel; 0.1.0)"}}}
+{"direction":"client_to_server","message":{"method":"initialized"}}

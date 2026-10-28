@@ -1,0 +1,10 @@
+{
+  "arch": "arm64",
+  "completed": true,
+  "home": "shared",
+  "os": "darwin",
+  "recordedAt": "2026-10-28T04:32:23Z",
+  "sanitization": "in-memory before persistence",
+  "scenario": "image",
+  "version": "0.164.0"
+}

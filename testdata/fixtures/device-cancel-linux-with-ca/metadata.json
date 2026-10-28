@@ -1,0 +1,11 @@
+{
+  "arch": "arm64",
+  "completed": true,
+  "home": "private",
+  "os": "linux",
+  "recordedAt": "2026-10-28T04:47:19Z",
+  "sanitization": "in-memory before persistence",
+  "scenario": "device-cancel",
+  "schemaVersion": "0.164.0",
+  "version": "0.164.0"
+}

@@ -1,0 +1,11 @@
+{
+  "arch": "arm64",
+  "completed": false,
+  "home": "shared",
+  "os": "darwin",
+  "recordedAt": "2026-10-28T04:51:40Z",
+  "sanitization": "in-memory before persistence",
+  "scenario": "subagent-v1",
+  "schemaVersion": "0.164.0",
+  "version": "0.164.0"
+}

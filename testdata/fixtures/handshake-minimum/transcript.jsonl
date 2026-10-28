@@ -1,0 +1,3 @@
+{"direction":"client_to_server","message":{"id":1,"method":"initialize","params":{"clientInfo":{"name":"arvel","title":"Arvel","version":"0.1.0"}}}}
+{"direction":"server_to_client","message":{"id":1,"result":{"codexHome":"/scratch","platformFamily":"unix","platformOs":"linux","userAgent":"arvel/0.122.0 (Debian 12.0.0; aarch64) dumb (arvel; 0.1.0)"}}}
+{"direction":"client_to_server","message":{"method":"initialized"}}

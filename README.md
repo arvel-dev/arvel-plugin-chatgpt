@@ -108,15 +108,20 @@ The plugin talks only to the `codex` program on the same machine. Codex talks to
 
 | Plugin | Codex CLI tested | Plugin API |
 |---|---|---|
-| 0.1.x | see release notes | 1 |
+| 0.1.x (bootstrap) | 0.122.0 interface floor; 0.164.0 exercised | 1 |
 
-A weekly CI job checks new Codex releases for protocol changes.
+Weekly checks of new Codex releases are planned for the conformance milestone.
 
 ## Disclaimer
 
 Independent open-source project, not affiliated with or endorsed by OpenAI. "OpenAI", "ChatGPT" and "Codex" are trademarks of OpenAI.
 
 ## Development
+
+Requires Go 1.27.2 or newer for arvel-sdk v0.1.2. The current provider is a
+bootstrap and reports an incomplete status; it does not execute agent sessions
+yet. See [bootstrap findings](docs/FINDINGS.md) for measured CLI behavior and
+outstanding verification. Minimal Linux containers need a system CA bundle.
 
 ```bash
 go test -race ./...
@@ -125,7 +130,9 @@ arvel-plugin-check --level release --scenarios ./conformance -- ./dist/arvel-plu
 codex app-server generate-json-schema --out testdata/schema/$(codex --version | awk '{print $NF}')
 ```
 
-Fixtures: see `testdata/fixtures/README.md`. E2E tests: `ARVEL_E2E=1 go test -tags e2e ./e2e/...`.
+Release conformance is a G6 gate; the bootstrap does not pass it yet. Synthetic discovery goldens can be checked with `python3.12 scripts/check-discovery-fixtures.py` (Python 3.11+).
+
+Fixtures: see [`testdata/fixtures/README.md`](testdata/fixtures/README.md). Validate them offline with `go run ./cmd/record-fixtures verify`. E2E tests: `ARVEL_E2E=1 go test -tags e2e ./e2e/...`.
 
 ## License
 

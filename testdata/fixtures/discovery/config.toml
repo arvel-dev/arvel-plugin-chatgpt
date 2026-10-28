@@ -1,0 +1,12 @@
+# Synthetic format fixture; not copied from a personal Codex home.
+[mcp_servers.example_stdio]
+command = "example-server"
+args = ["--stdio"]
+env_vars = ["EXAMPLE_TOKEN"]
+
+[mcp_servers.example_stdio.env]
+EXAMPLE_API_KEY = "synthetic-not-a-real-key"
+
+[mcp_servers.example_http]
+url = "https://mcp.example.invalid/api"
+bearer_token_env_var = "EXAMPLE_BEARER"
