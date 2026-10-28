@@ -1305,3 +1305,20 @@ on Windows job 123029541419 and Linux job 123029540965, with zero steps; this
 rerun checks current runner availability at the older G4 revision, not G5 code. Cross-builds and the Linux readiness fixture do not replace
 native Windows acceptance. G5 remains open until the required current-revision
 native CI evidence is obtained.
+
+
+## Owner acceptance and post-release native checks (2026-10-29)
+
+The owner accepts G5 as complete on the verified local implementation and
+explicitly moves native Windows/CI verification to after the v0.1.0 release.
+This overrides the earlier pre-release native-CI completion requirement.
+Prepared native tests remain in place; no native result is relabeled PASS.
+G6 must not reintroduce this deferred check as a pre-release acceptance gate.
+Other release-conformance requirements, private authorization, host sandbox
+guarantees, and separate merge/publication approval remain unchanged.
+
+G5 is accepted complete on branch feat/g5-host-tools-media, implementation
+checkpoint c4f155b. Native CI run 40751856106 still has no executed steps;
+this decision does not change its infrastructure-blocked result. The separate
+post-release backlog records readiness, executable/shim and process-tree
+checks. No beta, merge or publication is authorized by this acceptance.
