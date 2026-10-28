@@ -20,7 +20,7 @@ func TestTurn_TerminalAndDeliveryFailures(t *testing.T) {
 	}{
 		{"completed", "completed", "turn", false, false, false, acp.StopReasonEndTurn},
 		{"interrupted", "interrupted", "turn", false, false, false, acp.StopReasonCancelled},
-		{"failed", "failed", "turn", false, false, true, ""},
+		{"failed", "failed", "turn", false, false, false, acp.StopReasonEndTurn},
 		{"mismatch", "completed", "different", false, false, true, ""},
 		{"host-disconnect", "completed", "turn", true, false, true, ""},
 		{"missing-terminal", "", "turn", false, true, true, ""},

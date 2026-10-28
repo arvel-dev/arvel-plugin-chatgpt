@@ -57,6 +57,7 @@ func (p *provider) Initialize(_ context.Context, meta protocol.InitMeta) (plugin
 	router := session.NewRouter()
 	hooks := connection.Hooks{ForGeneration: router.ForGeneration, Stopped: router.Stopped}
 	if p.host != nil {
+		hooks.UsageUpdated = p.host.UsageUpdated
 		m, err = connection.NewWithHooks(meta, p.host.StatusChanged, p.host.Logger(), hooks)
 	} else {
 		m, err = connection.NewWithHooks(meta, nil, nil, hooks)
@@ -107,8 +108,12 @@ func (p *provider) Models(ctx context.Context, refresh bool) (protocol.ModelsRes
 	return m.Models(ctx, refresh)
 }
 
-func (*provider) Usage(context.Context) (protocol.Usage, error) {
-	return protocol.Usage{Source: protocol.UsageSourceUnknown, Status: protocol.UsageStatusOK}, nil
+func (p *provider) Usage(ctx context.Context) (protocol.Usage, error) {
+	m, err := p.connection()
+	if err != nil {
+		return protocol.Usage{}, err
+	}
+	return m.Usage(ctx)
 }
 
 func (p *provider) Action(ctx context.Context, id string) (protocol.ActionResult, error) {

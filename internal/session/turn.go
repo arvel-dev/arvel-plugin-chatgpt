@@ -9,6 +9,7 @@ import (
 
 	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/appserver/schema"
 	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/mapper"
+	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/usage"
 	"github.com/arvel-dev/arvel-sdk/plugin"
 	"github.com/arvel-dev/arvel-sdk/protocol"
 	acp "github.com/coder/acp-go-sdk"
@@ -100,6 +101,10 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 	previousTurn := s.snapshot.LastTurn
 	s.snapshot.Empty = false // Once delivery is attempted, history loss is ambiguous.
 	s.mu.Unlock()
+	if runtime.ActiveTurn != nil {
+		release := runtime.ActiveTurn()
+		defer release()
+	}
 	work, stop := context.WithCancel(context.Background())
 	var workers sync.WaitGroup
 	defer func() { stop(); workers.Wait() }()
@@ -162,6 +167,18 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 		}
 		return nil
 	}
+	var tokens *protocol.TurnUsage
+	defer func() {
+		if resultErr == nil {
+			result.Usage = tokens
+		}
+	}()
+	quota := func() usage.QuotaContext {
+		if runtime.Quota != nil {
+			return runtime.Quota()
+		}
+		return usage.QuotaContext{}
+	}
 	var terminal *schema.Turn
 	started := false
 	interruptStarted := false
@@ -201,7 +218,12 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 			case "interrupted":
 				return plugin.TurnResult{StopReason: acp.StopReasonCancelled}, nil
 			default:
-				return plugin.TurnResult{}, setupError("Codex could not complete the turn")
+				var failure schema.TurnError
+				if json.Unmarshal(terminal.Error, &failure) != nil {
+					failure = schema.TurnError{}
+				}
+				detail := usage.Classify(failure, model, quota(), s.now())
+				return plugin.TurnResult{StopReason: acp.StopReasonEndTurn, Stop: &detail}, nil
 			}
 		}
 		if cancelled() {
@@ -236,7 +258,7 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 				if cancelled() {
 					return plugin.TurnResult{StopReason: acp.StopReasonCancelled}, nil
 				}
-				return plugin.TurnResult{}, setupError("Codex turn could not be started")
+				return plugin.TurnResult{}, usage.RPCError(reply.err, model, quota(), s.now())
 			}
 			if !bind(reply.response.Turn.ID) {
 				abort()
@@ -291,6 +313,18 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 				abort()
 				return plugin.TurnResult{}, setupError("Codex returned inconsistent turn identities")
 			}
+			if next.event.Method == "thread/tokenUsage/updated" {
+				var event schema.TokenUsageNotification
+				if terminal == nil && json.Unmarshal(next.event.Params, &event) == nil {
+					if observed := usage.Tokens(event.TokenUsage); observed != nil {
+						tokens = observed
+					}
+				}
+				continue
+			}
+			if next.event.Method == "error" {
+				continue
+			} // Retry advisories never complete a turn.
 			updates, err := mapping.Push(next.event.Method, next.event.Params)
 			if err != nil {
 				abort()

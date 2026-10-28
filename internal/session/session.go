@@ -64,6 +64,7 @@ type Session struct {
 	broken   bool
 	// Tests inject a shorter escalation interval without sleeping ten seconds.
 	cancelAfter time.Duration
+	now         func() time.Time
 }
 
 var _ plugin.Session = (*Session)(nil)
@@ -102,7 +103,7 @@ func open(ctx context.Context, backend Backend, router *Router, params plugin.Se
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	s := &Session{backend: backend, router: router, log: logger, params: params, id: id, cancelAfter: cancelTimeout}
+	s := &Session{backend: backend, router: router, log: logger, params: params, id: id, cancelAfter: cancelTimeout, now: time.Now}
 	if saved != nil {
 		s.snapshot = *saved
 	}

@@ -22,6 +22,7 @@ type sdkHost struct {
 	peer    *jsonrpc.Peer
 	ctx     context.Context
 	updates chan json.RawMessage
+	usages  chan protocol.Usage
 	cwd     string
 }
 
@@ -36,7 +37,7 @@ func newSDKHost(t *testing.T, handler func(context.Context, json.RawMessage) (an
 	hostIn, pluginOut := io.Pipe()
 	ctx, cancel := context.WithCancel(context.Background())
 	callContext, stopCalls := context.WithTimeout(ctx, 20*time.Second)
-	h := &sdkHost{peer: jsonrpc.NewPeer(hostIn, hostOut), ctx: callContext, updates: make(chan json.RawMessage, 256), cwd: t.TempDir()}
+	h := &sdkHost{peer: jsonrpc.NewPeer(hostIn, hostOut), ctx: callContext, updates: make(chan json.RawMessage, 256), usages: make(chan protocol.Usage, 256), cwd: t.TempDir()}
 	if handler == nil {
 		handler = func(context.Context, json.RawMessage) (any, error) {
 			return acp.RequestPermissionResponse{Outcome: acp.NewRequestPermissionOutcomeSelected("allow_once")}, nil
@@ -46,6 +47,17 @@ func newSDKHost(t *testing.T, handler func(context.Context, json.RawMessage) (an
 	h.peer.HandleNotification(protocol.MethodSessionUpdate, func(_ context.Context, raw json.RawMessage) {
 		select {
 		case h.updates <- append(json.RawMessage(nil), raw...):
+		case <-ctx.Done():
+		}
+	})
+	h.peer.HandleNotification(protocol.MethodUsageUpdated, func(_ context.Context, raw json.RawMessage) {
+		var u protocol.Usage
+		if json.Unmarshal(raw, &u) != nil {
+			t.Error("invalid usage JSON")
+			return
+		}
+		select {
+		case h.usages <- u:
 		case <-ctx.Done():
 		}
 	})

@@ -831,3 +831,43 @@ runtime has been borrowed, the manager recreates the generation before it can
 serve sessions for the new account. This leaves failed replacement-login account
 preservation intact and requires fresh authorized acquisition on recovery. Both
 logout and principal-change regressions were reproduced and verified offline.
+
+## G4 — Usage and typed error contract reconciliation
+
+The existing 0.122.0 and 0.164.0 committed schemas both expose the selected
+rate-limit window fields and last/total token counters. The historical interface floor is
+0.122.0; the production minimum remains 0.164.0 as established by G3 private-home
+isolation (connection/config.go). cacheWriteInputTokens is newer and is not required or mapped to a host
+field. No generated schema was modified. Real `limits`, `text` and `failed`
+recordings establish the read, push, token and failed-model payloads.
+
+The pinned 0.164.0 source `app-server-protocol/src/protocol/v2/shared.rs`
+(`From<CoreCodexErrorInfo>`) maps UsageLimitExceeded, RateLimitExceeded and
+FlexUnavailable separately. Only `usageLimitExceeded` is used as definite quota
+proof. The following adapter cases are source/schema-derived synthetic coverage,
+not live observations of quota exhaustion:
+
+| Vendor terminal evidence | Arvel outcome |
+|---|---|
+| `usageLimitExceeded` | `rate_limited`, retryable |
+| `contextWindowExceeded` | `context_overflow` |
+| `unauthorized` | `auth_required` |
+| `serverOverloaded`, `rateLimitExceeded`, `flexUnavailable` | `overloaded`, retryable; no quota claim |
+| Recorded `other` with structured JSON `error.code=model_not_found` | `model_unavailable`, selected model |
+| `sessionBudgetExceeded`, unknown string/object/null or malformed error | safe `provider_error`; no invented turns/USD dimension |
+
+The schema describes account/rateLimits/updated as sparse rolling state. The
+provider refetches the historical single-bucket account/rateLimits/read view;
+it does not flatten arbitrary metered buckets. Null rolling metadata is not
+recovery evidence. primary/secondary are slot IDs; labels follow duration,
+including the observed weekly primary. Reset hints require current scoped,
+fresh evidence and a unique fully used window with a future reset. Ambiguous
+or stale evidence omits both windowId and resetsAt.
+
+SDK v0.1.2 has TurnResult.Usage/Stop, protocol.TurnUsage and time.Time reset
+fields, and Host.UsageUpdated already throttles notifications to five seconds.
+There are no SDK reasoning/cache-write extensions. The last per-turn counters
+are mapped without summing cached or reasoning subsets. Cost remains unknown.
+API-key spend uses USD/source unknown; the SDK-required numeric sinceStart zero
+is an unknown-source placeholder, never a measured zero. No real API-key
+billing or forced live quota failure was observed.

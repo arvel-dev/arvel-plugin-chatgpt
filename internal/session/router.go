@@ -69,6 +69,7 @@ func NewRouter() *Router {
 
 var routedNotifications = []string{
 	"thread/started", "thread/status/changed", "turn/started", "turn/completed",
+	"thread/tokenUsage/updated", "error",
 	"turn/plan/updated", "turn/diff/updated", "item/started", "item/completed",
 	"item/agentMessage/delta", "item/reasoning/summaryTextDelta", "item/reasoning/summaryPartAdded",
 }
