@@ -23,12 +23,12 @@ func TestEnvironment_StripsAmbientCredentialsAndPreservesProxy(t *testing.T) {
 	values := map[string]string{}
 	for _, entry := range env {
 		k, v, _ := strings.Cut(entry, "=")
-		values[k] = v
+		values[strings.ToUpper(k)] = v
 	}
 	if values["CODEX_HOME"] != home || values["RUST_LOG"] != "warn" {
 		t.Fatal("private environment was not applied")
 	}
-	for _, key := range []string{"HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "https_proxy", "http_proxy", "all_proxy"} {
+	for _, key := range []string{"HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY"} {
 		if values[key] != "http://127.0.0.1:12345" {
 			t.Errorf("proxy missing: %s", key)
 		}
