@@ -1,0 +1,20 @@
+{
+  "arch": "arm64",
+  "completed": false,
+  "coverage": "owned disposable home; real CLI with synthetic loopback backend; no account/OpenAI/spend or host sandbox certification",
+  "home": "private",
+  "observations": [
+    "user-text",
+    "project-structured-sibling",
+    "ancestor-text",
+    "unloaded-resume-user-text"
+  ],
+  "os": "linux",
+  "recordedAt": "2026-10-28T14:56:51Z",
+  "sanitization": "in-memory before persistence",
+  "scenario": "skills-isolation",
+  "schemaVersion": "0.164.0",
+  "securityGatePassed": false,
+  "unassignedSkillBodyObserved": true,
+  "version": "0.164.0"
+}

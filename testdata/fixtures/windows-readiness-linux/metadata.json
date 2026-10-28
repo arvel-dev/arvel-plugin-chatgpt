@@ -1,0 +1,12 @@
+{
+  "arch": "arm64",
+  "completed": true,
+  "coverage": "real CLI readiness response on recorded OS; no native Windows certification when OS is not Windows; no setup/start",
+  "home": "private",
+  "os": "linux",
+  "recordedAt": "2026-10-28T16:46:47Z",
+  "sanitization": "in-memory before persistence",
+  "scenario": "windows-readiness",
+  "schemaVersion": "0.164.0",
+  "version": "0.164.0"
+}

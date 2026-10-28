@@ -18,26 +18,28 @@ import (
 )
 
 type fakeClient struct {
-	mu           sync.Mutex
-	account      *schema.Account
-	calls        []string
-	opts         appserver.Options
-	done         chan struct{}
-	once         sync.Once
-	login        int
-	keyError     bool
-	readBlock    <-chan struct{}
-	loginBlock   <-chan struct{}
-	early        bool
-	invalid      bool
-	pages        map[string]schema.ModelListResponse
-	modelError   bool
-	modelParams  []schema.ModelListParams
-	onModel      func()
-	quota        any
-	quotaError   bool
-	accountError bool
-	onQuota      func()
+	mu             sync.Mutex
+	account        *schema.Account
+	calls          []string
+	opts           appserver.Options
+	done           chan struct{}
+	once           sync.Once
+	login          int
+	keyError       bool
+	readBlock      <-chan struct{}
+	loginBlock     <-chan struct{}
+	early          bool
+	invalid        bool
+	pages          map[string]schema.ModelListResponse
+	modelError     bool
+	modelParams    []schema.ModelListParams
+	onModel        func()
+	quota          any
+	quotaError     bool
+	accountError   bool
+	onQuota        func()
+	readiness      string
+	readinessError bool
 }
 
 func (f *fakeClient) Call(ctx context.Context, method string, params, result any) error {
@@ -61,6 +63,15 @@ func (f *fakeClient) Call(ctx context.Context, method string, params, result any
 	defer f.mu.Unlock()
 	var response any
 	switch method {
+	case "windowsSandbox/readiness":
+		if f.readinessError {
+			return errors.New("private-readiness-error")
+		}
+		status := f.readiness
+		if status == "" {
+			status = "ready"
+		}
+		response = schema.WindowsReadiness{Status: status}
 	case "account/read":
 		if f.accountError {
 			return errors.New("account unavailable")

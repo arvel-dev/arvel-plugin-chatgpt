@@ -114,7 +114,7 @@ func (b *sessionBackend) Acquire(context.Context) (connection.Runtime, error) {
 	return connection.Runtime{Client: b.client, Generation: b.generation, Home: b.home}, nil
 }
 func (b *sessionBackend) Models(context.Context, bool) (protocol.ModelsResult, error) {
-	return protocol.ModelsResult{Default: "model", Models: []protocol.Model{{ID: "model", Label: "Model", Efforts: []protocol.Effort{"low", "high"}}, {ID: "other", Label: "Other", Efforts: []protocol.Effort{"low"}}}}, nil
+	return protocol.ModelsResult{Default: "model", Models: []protocol.Model{{ID: "model", Label: "Model", Inputs: []string{"text", "image"}, Efforts: []protocol.Effort{"low", "high"}}, {ID: "other", Label: "Other", Inputs: []string{"text"}, Efforts: []protocol.Effort{"low"}}}}, nil
 }
 func (b *sessionBackend) Abort(ctx context.Context, id uint64) error {
 	b.mu.Lock()

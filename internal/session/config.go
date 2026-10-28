@@ -11,6 +11,7 @@ import (
 
 	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/appserver/schema"
 	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/policy"
+	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/sanitize"
 	"github.com/arvel-dev/arvel-sdk/plugin"
 	"github.com/arvel-dev/arvel-sdk/protocol"
 )
@@ -20,9 +21,12 @@ type caller interface {
 }
 
 type threadConfig struct {
-	start  schema.ThreadStartParams
-	policy *policy.Policy
-	meta   protocol.SessionMeta
+	start    schema.ThreadStartParams
+	policy   *policy.Policy
+	meta     protocol.SessionMeta
+	mcpNames map[string]string
+	clean    *sanitize.Cleaner
+	children int
 }
 
 func setupError(message string) error {
@@ -35,15 +39,11 @@ func buildConfig(params plugin.SessionParams, home string) (threadConfig, error)
 	if err != nil {
 		return threadConfig{}, setupError("Invalid session permissions or options")
 	}
-	if len(params.MCPServers) != 0 {
-		return threadConfig{}, setupError("Host MCP servers are not supported yet")
+	mcp, names, clean, err := mcpConfig(params)
+	if err != nil {
+		return threadConfig{}, err
 	}
-	if len(meta.Skills) != 0 {
-		return threadConfig{}, setupError("Host skills are not supported yet")
-	}
-	if meta.Subagents != nil && meta.Subagents.Enabled {
-		return threadConfig{}, setupError("Subagents are not supported yet")
-	}
+
 	if meta.Budget != nil && (meta.Budget.MaxUSD != 0 || math.IsNaN(meta.Budget.MaxUSD) || math.IsInf(meta.Budget.MaxUSD, 0)) {
 		return threadConfig{}, setupError("Cost budgets require measured usage and are not supported yet")
 	}
@@ -77,11 +77,13 @@ func buildConfig(params plugin.SessionParams, home string) (threadConfig, error)
 		CWD: cwd, ModelProvider: &openai, ApprovalPolicy: "on-request", Sandbox: p.Sandbox(), Ephemeral: false,
 		Config: map[string]any{
 			"projects": map[string]any{cwd: map[string]any{"trust_level": "untrusted"}},
-			"features": map[string]any{"hooks": false, "plugins": false}, "notify": []any{},
+			"features": map[string]any{"hooks": false, "plugins": false, "multi_agent": false, "multi_agent_v2": false}, "notify": []any{},
+			"agents":                  map[string]any{"enabled": false},
 			"sandbox_workspace_write": map[string]any{"network_access": p.NetworkAllowed()},
 			"tools":                   map[string]any{"update_plan": map[string]any{"enabled": true}},
 		},
 	}
+	start.Config["mcp_servers"] = mcp
 	// Hosted web search does not cross the native command-approval boundary.
 	// Without explicit network allow it must not be exposed as a model tool.
 	if !p.NetworkAllowed() {
@@ -94,7 +96,7 @@ func buildConfig(params plugin.SessionParams, home string) (threadConfig, error)
 	if instructions != "" {
 		start.DeveloperInstructions = &instructions
 	}
-	return threadConfig{start: start, policy: p, meta: meta}, nil
+	return threadConfig{start: start, policy: p, meta: meta, mcpNames: names, clean: clean}, nil
 }
 
 func containsPath(root, target string) bool {
@@ -110,7 +112,7 @@ func (c threadConfig) resume(thread string) schema.ThreadResumeParams {
 // preflight deliberately omits cwd: project configuration is atomically excluded
 // by the untrusted project override, including definitions added after this read.
 // Private-home ownership is required; this recipe is unsafe for a shared home.
-func preflight(ctx context.Context, client caller) error {
+func preflight(ctx context.Context, client caller, children ...bool) error {
 	var requirements schema.ConfigRequirementsResponse
 	if err := client.Call(ctx, "configRequirements/read", nil, &requirements); err != nil {
 		return setupError("Cannot verify managed Codex requirements")
@@ -131,11 +133,14 @@ func preflight(ctx context.Context, client caller) error {
 	if cfg.Config.ModelProvider != nil && *cfg.Config.ModelProvider != "openai" {
 		return setupError("Custom model providers are not supported in agent sessions")
 	}
-	for _, origin := range cfg.Origins {
+	for key, origin := range cfg.Origins {
 		switch origin.Name.Type {
 		case "user", "packagedDefaults", "sessionFlags":
 		default:
 			return setupError("Managed or unknown Codex configuration layers are not supported for agent sessions yet")
+		}
+		if len(children) > 0 && children[0] && origin.Name.Type != "packagedDefaults" && ((strings.HasPrefix(key, "agents.") && strings.HasSuffix(key, ".config_file")) || key == "agents" || key == "features" || key == "features.multi_agent_v2" || key == "features.multi_agent_v2.subagent_developer_instructions") {
+			return setupError("Inherited subagent instruction overrides are not supported")
 		}
 	}
 	return nil

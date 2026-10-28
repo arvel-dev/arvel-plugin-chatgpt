@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -84,6 +85,14 @@ func Run(ctx context.Context, o RunOptions) error {
 		}
 		if !knownScenario(o.Scenario) {
 			return errors.New("unknown fixed scenario")
+		}
+		if disposableScenario(o.Scenario) {
+			if o.Home != "private" {
+				return errors.New("owned scenario requires a private disposable home")
+			}
+			if _, err := disposableSkillHome(); err != nil {
+				return err
+			}
 		}
 		if (strings.HasPrefix(o.Scenario, "config-isolation") || o.Scenario == "device-cancel" || o.Scenario == "device-login" || strings.HasPrefix(o.Scenario, "env-") || o.Scenario == "private-api-key") && o.Home != "private" {
 			return errors.New("login probes require a private home")
@@ -158,6 +167,27 @@ func Run(ctx context.Context, o RunOptions) error {
 	}
 	if len(entries) > 0 {
 		metadata := map[string]any{"version": version, "schemaVersion": filepath.Base(o.Schema), "os": runtime.GOOS, "arch": runtime.GOARCH, "scenario": o.Scenario, "home": o.Home, "recordedAt": time.Now().UTC().Format(time.RFC3339), "sanitization": "in-memory before persistence", "completed": err == nil}
+		if build, ok := debug.ReadBuildInfo(); ok {
+			for _, dependency := range build.Deps {
+				if dependency.Path == "github.com/arvel-dev/arvel-sdk" && dependency.Replace == nil {
+					metadata["sdkVersion"] = dependency.Version
+				}
+			}
+		}
+		if strings.HasPrefix(o.Scenario, "subagent-owned") || o.Scenario == "skills-managed" || o.Scenario == "image-inline" || strings.HasPrefix(o.Scenario, "mcp-native-") {
+			metadata["coverage"] = "real CLI G5 input/tool policy observed with owned synthetic loopback model backend; no account/OpenAI/model-spend or host sandbox certification"
+		}
+		if o.Scenario == "windows-readiness" {
+			metadata["coverage"] = "real CLI readiness response on recorded OS; no native Windows certification when OS is not Windows; no setup/start"
+		}
+		if o.Scenario == "skills-isolation" {
+			metadata["securityGatePassed"] = false
+			metadata["unassignedSkillBodyObserved"] = errors.Is(err, errUnassignedSkill)
+			metadata["coverage"] = "owned disposable home; real CLI with synthetic loopback backend; no account/OpenAI/spend or host sandbox certification"
+			if errors.Is(err, errUnassignedSkill) {
+				metadata["observations"] = []string{"user-text", "project-structured-sibling", "ancestor-text", "unloaded-resume-user-text"}
+			}
+		}
 		if strings.HasPrefix(o.Scenario, "config-isolation") {
 			metadata["securityGatePassed"] = o.Scenario == "config-isolation-private" && err == nil
 			metadata["mcpAfterPreflightObserved"] = errors.Is(err, errIsolationRace)
@@ -207,6 +237,8 @@ func requiredObservation(entries []Entry, scenario string) error {
 		wantMethod = "item/reasoning/summaryTextDelta"
 	case "plan", "plan-enabled":
 		wantMethod = "turn/plan/updated"
+	case "image-inline":
+		wantMarker = "IMAGE_INPUT_OBSERVED"
 	case "image":
 		wantMarker = "IMAGE_READY"
 	case "instructions":
@@ -258,7 +290,11 @@ func requiredObservation(entries []Entry, scenario string) error {
 	return errors.New("required feature observation was not emitted; completed turn alone is insufficient")
 }
 
-var scenarioNames = []string{"config-isolation", "config-isolation-private", "config-isolation-race", "config-isolation-empty", "config-isolation-null", "config-isolation-array", "config-isolation-untrusted-project", "config-isolation-untrusted-user", "handshake", "handshake-jsonrpc", "preinitialize", "account", "models", "limits", "thread", "text", "reasoning", "interrupt", "edit-read-only", "edit-workspace", "edit-accept", "edit-session", "edit-cancel", "resume", "image", "plan", "plan-enabled", "command", "command-approval", "web", "mcp", "subagent", "subagent-v1", "subagent-enabled", "subagent-persistent", "subagent-capacity", "subagent-complete", "instructions", "skills", "skills-explicit", "skills-selected", "failed", "env-stripped", "env-openai", "env-codex", "private-api-key", "device-cancel", "device-login", "network-allow", "network-deny"}
+var scenarioNames = []string{"subagent-owned-role", "subagent-owned-capacity", "skills-managed", "subagent-owned-override", "subagent-owned", "windows-readiness", "mcp-native-startup-failure", "mcp-native-allow", "mcp-native-override", "mcp-native-empty", "mcp-native-repeated", "mcp-native-stdio", "mcp-native-http", "mcp-native-session", "mcp-native-decline", "mcp-native-deny", "image-inline", "skills-isolation", "config-isolation", "config-isolation-private", "config-isolation-race", "config-isolation-empty", "config-isolation-null", "config-isolation-array", "config-isolation-untrusted-project", "config-isolation-untrusted-user", "handshake", "handshake-jsonrpc", "preinitialize", "account", "models", "limits", "thread", "text", "reasoning", "interrupt", "edit-read-only", "edit-workspace", "edit-accept", "edit-session", "edit-cancel", "resume", "image", "plan", "plan-enabled", "command", "command-approval", "web", "mcp", "subagent", "subagent-v1", "subagent-enabled", "subagent-persistent", "subagent-capacity", "subagent-complete", "instructions", "skills", "skills-explicit", "skills-selected", "failed", "env-stripped", "env-openai", "env-codex", "private-api-key", "device-cancel", "device-login", "network-allow", "network-deny"}
+
+func disposableScenario(scenario string) bool {
+	return scenario == "skills-isolation" || scenario == "skills-managed" || scenario == "image-inline" || strings.HasPrefix(scenario, "mcp-native-") || strings.HasPrefix(scenario, "subagent-owned")
+}
 
 // Scenarios returns the fixed development probe names supported by this tool.
 func Scenarios() []string { return append([]string(nil), scenarioNames...) }
@@ -414,10 +450,13 @@ type peer struct {
 	approvedFiles   map[string]bool
 	cwd             string
 	decision        string
+	mcpSession      bool
+	mcpApprovals    int
 	allowFixtureMCP bool
 	networkSeen     *atomic.Int32
 	networkAllowed  bool
 	deviceCode      func(string, string) error
+	observe         func(wireMessage)
 }
 
 func record(ctx context.Context, spec procx.Spec, b *Bundle, scenario string, entries *[]Entry) error {
@@ -477,8 +516,15 @@ func recordWithDeviceCode(ctx context.Context, spec procx.Spec, b *Bundle, scena
 		wg.Wait()
 	}()
 	rd := redact.New()
-	if strings.HasPrefix(scenario, "config-isolation") {
+	if strings.HasPrefix(scenario, "config-isolation") || scenario == "skills-isolation" || strings.HasPrefix(scenario, "subagent-owned") || scenario == "skills-managed" || scenario == "image-inline" || strings.HasPrefix(scenario, "mcp-native-") {
 		rd.Add(spec.Dir)
+		if scenario == "skills-isolation" || strings.HasPrefix(scenario, "subagent-owned") || scenario == "skills-managed" || scenario == "image-inline" || strings.HasPrefix(scenario, "mcp-native-") {
+			home, err := disposableSkillHome()
+			if err != nil {
+				return err
+			}
+			rd.Add(home)
+		}
 		if binary, err := os.Executable(); err == nil {
 			rd.Add(binary)
 		}
@@ -486,7 +532,7 @@ func recordWithDeviceCode(ctx context.Context, spec procx.Spec, b *Bundle, scena
 			rd.Add(canonical)
 		}
 	}
-	peer := &peer{redactor: rd, scrubKeys: strings.HasPrefix(scenario, "config-isolation"), input: inW, read: read, readErr: readErr, bundle: b, entries: entries, serverIDs: map[string]bool{}, approvedFiles: map[string]bool{}, cwd: spec.Dir, decision: "decline", deviceCode: deviceCode}
+	peer := &peer{redactor: rd, scrubKeys: strings.HasPrefix(scenario, "config-isolation") || scenario == "skills-isolation" || strings.HasPrefix(scenario, "subagent-owned") || scenario == "skills-managed" || scenario == "image-inline" || strings.HasPrefix(scenario, "mcp-native-"), input: inW, read: read, readErr: readErr, bundle: b, entries: entries, serverIDs: map[string]bool{}, approvedFiles: map[string]bool{}, cwd: spec.Dir, decision: "decline", deviceCode: deviceCode}
 	return peer.scenario(ctx, scenario, spec.Dir)
 }
 
@@ -544,6 +590,9 @@ func (p *peer) receive(ctx context.Context) (wireMessage, error) {
 			if err := p.capture("server_to_client", raw); err != nil {
 				return wireMessage{}, err
 			}
+			if p.observe != nil {
+				p.observe(m)
+			}
 			if m.Method == "item/started" {
 				var params struct {
 					Item struct {
@@ -588,8 +637,9 @@ func (p *peer) receive(ctx context.Context) (wireMessage, error) {
 					response = map[string]any{"id": m.ID, "result": map[string]any{"permissions": map[string]any{}, "scope": "turn"}}
 				case "mcpServer/elicitation/request":
 					var params struct {
-						Server string `json:"serverName"`
-						Mode   string `json:"mode"`
+						Meta   map[string]json.RawMessage `json:"_meta"`
+						Server string                     `json:"serverName"`
+						Mode   string                     `json:"mode"`
 						Schema struct {
 							Type       string         `json:"type"`
 							Properties map[string]any `json:"properties"`
@@ -600,7 +650,14 @@ func (p *peer) receive(ctx context.Context) (wireMessage, error) {
 					if p.allowFixtureMCP && params.Server == "arvel_probe" && params.Mode == "form" && params.Schema.Type == "object" && len(params.Schema.Properties) == 0 {
 						action = "accept"
 					}
-					response = map[string]any{"id": m.ID, "result": map[string]any{"action": action, "content": map[string]any{}}}
+					if params.Server == "arvel_probe" {
+						p.mcpApprovals++
+					}
+					result := map[string]any{"action": action, "content": map[string]any{}}
+					if p.mcpSession && action == "accept" {
+						result["_meta"] = map[string]any{"persist": "session"}
+					}
+					response = map[string]any{"id": m.ID, "result": result}
 				default:
 					response = map[string]any{"id": m.ID, "error": map[string]any{"code": -32601, "message": "Unsupported by recording probe"}}
 				}
@@ -695,8 +752,41 @@ func (p *peer) scenario(ctx context.Context, scenario, cwd string) error {
 	if err := p.send(map[string]any{"method": "initialized"}); err != nil {
 		return err
 	}
+	if strings.HasPrefix(scenario, "subagent-owned") {
+		return p.nativeSubagent(ctx, cwd, scenario)
+	}
+	if scenario == "skills-managed" {
+		return p.managedSkills(ctx, cwd)
+	}
+	if scenario == "windows-readiness" {
+		raw, err := p.request(ctx, "windowsSandbox/readiness", nil)
+		if err != nil {
+			return err
+		}
+		var response struct {
+			Status string `json:"status"`
+		}
+		if json.Unmarshal(raw, &response) != nil {
+			return errors.New("invalid sandbox readiness")
+		}
+		switch response.Status {
+		case "ready", "notConfigured", "updateRequired":
+			return nil
+		default:
+			return errors.New("unknown sandbox readiness")
+		}
+	}
 	if scenario == "config-isolation-private" {
 		return p.privateIsolation(ctx, cwd)
+	}
+	if scenario == "skills-isolation" {
+		return p.skillIsolation(ctx, cwd)
+	}
+	if scenario == "image-inline" {
+		return p.inlineImage(ctx, cwd)
+	}
+	if strings.HasPrefix(scenario, "mcp-native-") {
+		return p.nativeMCP(ctx, cwd, scenario)
 	}
 	if strings.HasPrefix(scenario, "config-isolation") {
 		return p.isolation(ctx, cwd, scenario)

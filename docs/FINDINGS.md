@@ -871,3 +871,454 @@ are mapped without summing cached or reasoning subsets. Cost remains unknown.
 API-key spend uses USD/source unknown; the SDK-required numeric sinceStart zero
 is an unknown-source placeholder, never a measured zero. No real API-key
 billing or forced live quota failure was observed.
+
+
+## G5 — Assigned-skill isolation gate (blocked)
+
+### Stable source contract
+
+The pinned Codex 0.164.0 source at
+`6aaac694803004a63c6f393d153c96d22521a6b9` does not establish a supported
+atomic allowlist of assigned skill roots:
+
+- `ext/skills/src/host_roots.rs`, `roots_from_layer_stack`, adds the real
+  user home's `.agents/skills` independently of the private CODEX_HOME.
+  `repo_agents_skill_roots` also adds `.agents/skills` between the repository
+  root and cwd. Marking project configuration untrusted does not remove those
+  skill roots.
+- `config/src/skills_config.rs`, `SkillsConfig` and
+  `SkillConfigRules::resolve_disabled_paths`, implements exact path or exact
+  name rules. A name of `*` is not a wildcard. Disabling enumerated files
+  cannot cover a different skill introduced after that inventory.
+- `skills.include_instructions = false` controls the automatic instruction
+  catalog. `core/src/session/turn.rs`, `build_skills_and_plugins`, still
+  obtains the skills snapshot and resolves explicit mentions;
+  `skills/src/selection.rs` includes textual and structured selection.
+  Hiding the catalog is not an exclusion boundary.
+
+This is a bounded source audit, not proof that every possible future supported
+mechanism is impossible. No unverified flag, internal/experimental root API,
+HOME redirection or SDK modification is an accepted workaround.
+
+### Measured counterexample
+
+`testdata/fixtures/skills-isolation-linux/` is real Codex 0.164.0 RPC traffic
+from Linux arm64 in a fresh disposable `node:22-bookworm-slim` container. The
+probe used the container's natural user home, a separate private CODEX_HOME,
+owned repository/ancestor/user skill fixtures, and a synthetic loopback
+Responses backend. The container's external network was disabled. It did not
+mount the person's home, read their configuration/credentials, log in, contact
+OpenAI or use a real model/account/spend. This is not the Arvel M5c sandbox.
+
+The preflight `skills/list` enumerates three known unassigned skills. The probe
+then creates four new unassigned skills with distinct body-only sentinel text.
+Both threads use `approvalPolicy:on-request`, `sandbox:read-only`, untrusted
+project/ancestor config, hooks/plugins/delegation disabled, network disabled,
+`skills.include_instructions:false`, and exact-path disabled rules for the
+original three skills. Neither prompt text nor structured selection contains
+any sentinel from a skill body.
+
+The backend reads only bounded synthetic requests in memory. It returns
+`UNASSIGNED_SKILL_BODY_OBSERVED` only when the currently expected unique
+body sentinel is present in the request. It executes no tools. Four turns
+completed and each delivered the corresponding unassigned body:
+
+| Turn | Thread | Selection | Unassigned source |
+|---|---|---|---|
+| 1 | Root | Textual `$arvel-late-0` | Disposable user `.agents/skills` |
+| 2 | Concurrently open sibling | Structured `type:skill` | Project `.agents/skills` |
+| 3 | Root, subsequent turn | Textual `$arvel-late-2` | Ancestor `.agents/skills` |
+| 4 | Root after unsubscribe/resume | Textual `$arvel-late-3` | Disposable user `.agents/skills` |
+
+The sibling is a second open thread; its turn is not simultaneous with the
+root's turn. This suffices to disprove exclusion; it does not certify the full
+concurrent-turn behavior matrix. New skills are added after the preflight
+inventory but before thread/start, which already disproves the proposed
+inventory-based recipe. Post-start watcher races need not be inferred.
+
+Metadata deliberately records `completed:false`, `securityGatePassed:false`,
+`unassignedSkillBodyObserved:true` and the four observation scopes. The
+recording command exits nonzero after collecting all four counterexamples.
+This is a successfully reproduced **negative** result, not successful isolation.
+The transcript passes the committed 0.164.0 schema/correlation validator.
+
+### Reproduction safety and continuation
+
+Development-only scenario: `skills-isolation` in `cmd/record-fixtures`.
+It requires `ARVEL_E2E=1`, `--home private`, and an explicitly owned disposable
+natural home. In a fresh container only, provision
+`.arvel-disposable-skill-home` in that natural home with the exact contents
+`arvel-owned-disposable-skill-home` followed by a newline; set
+`ARVEL_DISPOSABLE_SKILL_HOME` to that same absolute directory. The guard
+refuses ordinary homes before executable discovery or output creation. Never
+provision this marker in the person's actual home. No production HOME change
+is involved.
+
+Build the recorder for the container architecture, install official Codex
+0.164.0 into a task-owned directory, provide the committed schemas in a real
+directory ending in `0.164.0`, disable the container's external network, then run:
+
+```text
+record-fixtures record --scenario skills-isolation --home private
+  --codex <absolute-owned-Codex-0.164.0-binary>
+  --schema <absolute-schema-directory>/0.164.0
+  --out <new-owned-output-directory> --timeout 90s
+```
+
+Arguments above form one invocation. On the measured result, expect exit 1
+with the fixed unassigned-skill-body diagnostic. A schema-root symlink does
+not work with this recorder's WalkDir-based loader; use an actual schema
+copy/mount directory. The initial capture used a mount named `schema` and
+therefore reported that basename as schemaVersion; it was not retained in the
+repository. The committed capture was rerun with the correct schema-directory
+basename and includes the final observation metadata.
+
+G5 Task 1 remains blocked and unchecked. At the time of this measurement,
+Tasks 2–20 had not started. The owner subsequently authorized independent G5
+work; the dependency graph now permits that work without claiming strict skill
+exclusion or full G5 completion. Closing the strict-skill guarantee needs an
+evidenced supported vendor exclusion/allowlist contract,
+or actual host filesystem enforcement that supplies this guarantee. The
+existing host-integration deferral does not establish that enforcement or
+permit a synthetic Docker probe to substitute for M5c. The G3 successful
+configuration-isolation recording was expressly scoped to MCP/hooks/notify and
+the lifecycle; it did not certify skill-root isolation. Current production
+session setup still lacks this skill-exclusion guarantee. No new G5 capability
+or sandbox weakening is enabled by this evidence-only change.
+
+
+### Release and host dependency reconciliation after the counterexample
+
+On 2026-10-28 the owner prioritized releasing a plugin consumable by the
+application and approved continuing independent G5 work. The all-task dependency
+on skill isolation was an overly broad plan constraint, not a necessary
+technical dependency. It has been removed for independent features; native host
+skill activation and full G5 completion remain gated.
+
+Host ADR-14 and sandbox-contract.md were rechecked at revision
+`183b2e0ea559a518ec3a84732c35d620c0c72532`: plugin release uses SDK/mockhost
+conformance, while M3 and M5c core acceptance use generic echo/fake plugins.
+The application therefore has no mandatory dependency on this provider release
+for those tests. Actual provider compatibility remains a separate matrix.
+No assumption is made that the current M5c scope supplies skill-root masking.
+The proposed integration-beta release and any changed skill guarantees await
+an explicit owner decision; neither a release waiver nor publication approval
+is inferred. See HOST-INTEGRATION.md and the updated G5 plan.
+
+
+G5 independent-contract work resumed with an exact Codex 0.164.0 schema
+regeneration against the committed directory. The existing recorder compared
+all generated JSON byte-for-byte and passed on 2026-10-28. No schema drift,
+new version floor or new production protocol type is introduced by this check.
+Task 2 remains in progress until its inventory/fixture requirements are met.
+
+
+Owner decision (2026-10-28): no beta/prerelease; target full v0.1.0. The
+application agent owns preparation of the generic strict assigned-skill
+isolation contract. Independent plugin features and SDK/mockhost tests continue
+while that contract is prepared. The preceding beta proposal is superseded.
+Strict skill isolation and full G5/G6 completion remain unverified until the
+actual contract and applicable evidence exist; sandbox.mode alone is not proof.
+
+
+## G5 — Read-only discovery adapter
+
+Implemented `internal/discovery` and SDK `plugin.Discoverer` on the provider.
+The API is announced by the actual SDK interface; it runs only on an explicit
+`_arvel/discover` request. Initialize does not resolve discovery roots, start
+Codex, create a private home or authenticate. SDK-wire tests run signed out with
+an intentionally missing executable, verify secret-free serialized results,
+feature advertisement and source immutability. Native host execution is not
+claimed by those offline tests.
+
+The source is the user's default `CODEX_HOME/config.toml` (default
+`~/.codex/config.toml`), currently restricted to a directory beneath the actual
+user home; the provider rejects its own private state directory as a discovery
+root. User skills come from `~/.agents/skills`, project skills only from each
+explicit project's `.agents/skills`. No credential file, skill body or environment
+secret value is returned. Source secret/header literals become SDK SecretField
+markers; local environment references remain names, never getenv lookups.
+
+The production parser is BurntSushi/toml v1.6.0 (pure Go, MIT), tested with the
+existing synthetic discovery fixture and its SDK-shaped projection, quoted TOML
+tables, multiline literals and header references. yaml.v3 reads skill front
+matter only for output metadata; skill bodies are never returned. Parser source
+lines are not exposed in errors. Known literal secrets duplicated in public
+fields, recognized key formats, sensitive credential flags and HTTP URL
+userinfo/query/fragment cause the whole server definition to be omitted.
+Opaque user strings are not a general secret-detection oracle. Disabled,
+remote-environment and header-helper definitions are not imported.
+
+Limits: 1 MiB per source file, 8 MiB aggregate source/result bytes, 2,000 catalog
+entries, 64 requested projects and 256 command arguments per server. Empty kinds
+request nothing. Missing source directories/files return empty lists; malformed,
+redirected, inaccessible or excessive sources fail with a fixed safe diagnostic.
+Symlinked definitions/roots are conservatively rejected rather than followed.
+Unix reads use pinned directory descriptors, no-follow openat and nonblocking
+file opens before checking regular-file type; Windows uses pinned directory
+handles without delete sharing, opening/rejecting reparse points themselves.
+Native Windows execution still belongs to the OS CI gate; a cross-build alone
+is not that evidence.
+
+The manifest is unchanged: adding a global `~/.agents/skills` read grant would
+also expose it to the shared vendor process. Discovery cannot bypass actual host
+read denials, and it does not establish native skill-assignment isolation or
+change the blocked Tasks 1/7. The application-owned contract must account for
+explicit import discovery separately from session execution.
+
+
+## G5 — Inline image inputs
+
+The real `image-inline-linux` recording uses Codex 0.164.0 in a fresh disposable
+Linux arm64 home with external networking disabled. A controlled Responses
+backend inspects only bounded synthetic input and returns IMAGE_INPUT_OBSERVED
+when the exact owned one-pixel PNG is present as an input_image data URL. One
+turn completed. This establishes the stable `UserInput` image/url data-URL path,
+not model vision quality, real account behavior, Windows execution or Arvel
+sandbox compatibility. Metadata states the synthetic-backend scope explicitly.
+
+The provider now advertises ACP image prompts through SDK Features.PromptImage.
+Input accepts PNG/JPEG/GIF after strict base64 decoding and stdlib format/dimension
+validation; PNG is live-fixture verified, JPEG/GIF format support is source-backed
+by pinned utils/image. Limits are 2 MiB decoded image bytes per prompt, 16 images,
+and 40 million pixels per image. The decoded byte limit accommodates Codex's
+two echoed userMessage notifications inside the existing 8 MiB ingress/router
+budgets. Text-only models fail before delivery/history consumption. URI-only
+inputs, URI fetching, arbitrary local paths, audio and embedded context remain
+unsupported. Optional URI metadata is not fetched.
+
+Data URLs avoid temporary-image file lifetimes entirely; prompt data stays in
+turn-local memory and does not enter Snapshot, logs or host output. SDK-wire
+coverage asserts image capability and requires actual synthetic-vendor receipt;
+unit coverage checks order, invalid data/MIME/signature, bounds and model modality.
+This refines the initial localImage plan using measured stable behavior while
+preserving host/native sandbox controls. No vendor API is called directly by
+production code; all agent work still passes through Codex app-server.
+
+
+Discovery review regression: an aliased plugin data directory could evade the
+lexical private-state guard. The new alias test failed before correction and
+passes after comparing canonical directory identities. No private state is
+accepted as a user discovery source through that alias. Full local race/static/
+vet/schema checks and six target cross-builds passed for the discovery/media
+checkpoint; native Windows CI and actual Arvel compatibility remain pending.
+
+## G5 — Native MCP policy probe checkpoint
+
+Owned Linux recordings with Codex 0.164.0 and a synthetic Responses backend
+exercise stdio/HTTP tool delivery, forced prompt approval, decline, deny, allow,
+per-tool overrides, empty allowlists and repeated calls. These do not certify
+real accounts, native Windows or application sandbox enforcement. The two
+failed namespace experiments remain indexed as negative evidence.
+
+Forced `default_tools_approval_mode = "prompt"` asks on each invocation.
+The session-persistence experiment still asks twice despite an elicitation
+response requesting persistence. Pinned source limits the session approval
+cache to automatic approval mode; that mode may silently allow calls and cannot
+implement the host's strict ask policy. The bridge consequently offers only
+allow-once/reject, never a fabricated persistent grant. MCP requests use native
+flattened form parameters and have no dependable item/tool identity; the host
+permission identifier is session-local and is not guessed from display text.
+
+Configuration projection, approval and output delivery now have unit and SDK-wire
+coverage. Start/resume receive the same assigned definitions; default deny uses
+an explicit enabled_tools list, including an empty list, while denied overrides
+use disabled_tools. Native aliases are deterministic hashes of host identities;
+only the actual host-assigned `arvel` definition gets the trusted-server bypass.
+Concurrent sessions retain independent configuration and display-name maps.
+SSE and unstable ACP transports are rejected. Raw
+app-server stderr is omitted (byte counts only), since MCP children can print
+session credentials not known to the process logger. A short unregistered
+secret regression failed before this change and now passes. Full `go test ./...`
+passes at this checkpoint; it is not final G5 verification.
+
+`mcp-native-startup-failure-linux` records a missing owned executable producing
+the stable `mcpServer/startupStatus/updated` failed status. It completes its
+synthetic turn without MCP execution or permission requests. Method-specific
+schema re-emission covers both this status and native approval forms. Threadless
+status is ignored rather than attributed to another session; assigned failures
+are delivered once per session generation on its next prompt. Raw vendor error
+text is never displayed. Completed MCP result text is capped at 8 KiB and native
+failed status is retained, including native isError conversion performed upstream.
+
+The per-session literal filter includes short env/header values, supplied stdio
+arguments and query values. Streaming text retains only a bounded raw suffix so
+a known literal split across chunks is still removed before SDK delivery. It
+also applies the SDK token patterns to display fields; this is not a claim that
+arbitrary transformed or encoded secret exfiltration can be detected. Policy
+evaluation uses original inputs, then sanitizes permission display fields. The
+SDK fake detects duplicate responses and validates method-specific accept/cancel;
+tests cover refusal, repeated asks, cancellation with a responsive sibling,
+startup deduplication and secret-bearing result/delta payloads.
+
+While subagent delivery is unfinished, the baseline explicitly disables agents,
+multi_agent and multi_agent_v2 using the same stable configuration already
+recorded in G5 probes. Rejecting host subagent enablement alone would leave
+vendor defaults ambiguous. Enabled subagent routing remains unadvertised.
+
+
+## G5 — Superseding owner decisions (2026-10-29)
+
+The owner explicitly accepts a separate skill catalog for each provider, without
+automatically merging providers' catalogs. Workspaces and roles select from the
+corresponding provider catalog. External/global vendor
+skills potentially visible to Codex. Arvel labels externally managed skills and
+must not offer a nonfunctional disable control. Arvel-managed workspace skills
+support enable/disable/removal while preserving external originals and other
+live copies. Strict exclusion of all unassigned external skills is no longer a
+release requirement. This supersedes the earlier blocked isolation decision;
+the failed isolation recording remains failed evidence, not a passed guarantee.
+Private authentication and filesystem/network/command boundaries are unchanged.
+No immutable brief files were edited.
+
+The owner delegated subagent model/effort policy. Configured model and effort
+are defaults, with override behavior disclosed. `subagent-owned-linux` proves
+one native V2 child inherits the configured model, low effort and parent
+instructions, completes before the root's wait/turn completion, and has a
+thread/read source identifying the parent and depth 1. The owned model backend
+has no external networking or account/model-spend traffic. The override probe
+remains completed:false: with model overrides hidden from the tool schema, a
+synthetic spawn explicitly selected a different model/high effort successfully.
+This corroborates child_config.rs precedence: explicit requests precede defaults.
+It disproves strict model binding, not native sandbox/permission inheritance.
+The later owner decision adopts defaults; no runtime producer is advertised
+until child routing and SDK-wire verification are finished.
+
+## G5 — Windows preparation checkpoint
+
+The stable parameterless windowsSandbox/readiness response is recorded on Linux
+and schema-replayed; that is not native Windows execution evidence. Windows
+status processing reads readiness only after authentication, maps notConfigured
+and updateRequired to safe degraded guidance, and treats errors/unknown values
+as degraded. It never calls setup/start. The existing operation gate serializes
+refreshes and the normal status-dedup path remains in use. Upstream readiness
+may refresh an existing registered Core installation, as documented in pinned
+request_processors/windows_sandbox_processor.rs; it is not strictly read-only.
+
+Owned Windows-only tests cover standalone exe and npm-style cmd initialization,
+version lookup, paths with spaces/ampersands, SDK argument rejection/quoting, and
+Job Object termination of a spawned child. These test binaries cross-compile;
+no native pass is claimed. The existing windows-latest matrix includes them
+through go test -race ./.... Task 14/15 native acceptance remains open.
+
+
+## G5 — SDK v0.1.3 reconciliation (2026-10-29)
+
+The owner requested checking the updated SDK. Published v0.1.3 resolves to
+92ac2e29b4da68bf8300fa1d641eeca29134c678 (the local SDK worktree was clean).
+Go remains >=1.27.2, pluginApi remains 1, and Go/wire types are unchanged.
+PROTOCOL §7.7 now explicitly requires a separate shared catalogue per provider,
+with host-local provenance/ownership and enabled selections resolved into the
+existing SkillRef list. Manual invocation is independent of enable/disable.
+No new catalogue wire fields are introduced. This matches the owner's decision;
+external/global CLI skills may remain visible with honest controls/disclosure.
+The plugin dependency, manifest schema and release checker now pin v0.1.3.
+The inspected application's host/go.mod still pins v0.1.2; host files were not
+edited here, and wire compatibility does not depend on simultaneous upgrades.
+
+Materialize now preserves all occupied names, including marked copies, and uses
+a unique SDK copy-owner token to guard cleanup. The former independent-cleanup
+reproducer now verifies the later copy survives; no stale-marker replacement is
+assumed. The provider retains a catalog lease for identical ordered assignments
+and rejects conflicting simultaneous managed selections in a shared cwd. It
+still delegates actual copies, collision aliases, git excludes and ordinary
+cleanup to the SDK. Codex-specific native YAML policy and native skill names are
+applied only to those owned copies; external originals are untouched.
+
+A coordination handle serializes this provider's workspace leases across its
+connections/processes. Abandoned copies are never reclaimed automatically: an exclusive provider lock
+does not prove that an orphaned CLI task has stopped. Their journal blocks
+replacement until original cleanup or explicit host recovery. A marker alone
+is never proof; conflicting/abandoned catalogs require a separate task directory. One small coordination inode persists in git metadata (or .agents for a
+non-git directory), preventing lock-file unlink races; the OS handle is released
+at last close. Native copies and bounded source-staging directories are removed.
+Staging stays inside plugin data storage, reads only validated assigned sources,
+rejects symlinks/special files and credential-home sources, and is bounded by
+2000 entries/64 MiB. Sources are hashed before/after copying and are never edited.
+SDK-managed excludes can survive a hard provider crash; recovery does not rewrite
+unrelated user git metadata or claim abandoned-copy cleanup without proof.
+
+`skills-managed-linux` was re-recorded with SDK v0.1.3 (metadata states sdkVersion)
+and real Codex 0.164.0 against the owned Linux synthetic backend: a renamed manual
+copy is discovered under its native alias, omitted from an implicit turn, loaded
+by an explicit stable skill input, retained after the first shared lease closes,
+and removed after the last lease closes. Source and repository collision remain.
+The SDK wire test also exercises skill delivery across idle reload and app-server
+crash recovery, preserving original source contents and conversation identity.
+Full go test ./... passed after the SDK update; this is not native Windows or
+full G5 acceptance. Ordinary explicit skill mentions are translated to the exact
+owned native path, including collision aliases.
+
+`subagent-owned-capacity-linux`, also recorded with SDK v0.1.3, holds the first
+child's owned model request while the parent attempts a second spawn. Capacity
+two admits the root plus one active child; the second child does not start.
+The first child is then released, wait completes and root completion follows.
+This measures active concurrency, not a cumulative spawn count or max_depth.
+
+
+### G5 subagent delivery and final hardening (2026-10-29)
+
+The production adapter uses stable V2 with V1 disabled. `maxParallel` (default
+one, maximum sixteen) becomes native root-inclusive capacity `limit + 1`.
+Owned `subagent-owned-capacity-linux` records the second concurrent child being
+refused when root plus one child fills capacity. Model/effort remain defaults,
+not immutable limits, under the owner's decision.
+
+The real `subagent-owned-role-linux` fixture proves description-only native
+role declarations retain the parent's developer instructions. Native role
+config files otherwise replace those instructions (`core/src/agent/role.rs`).
+The adapter shadows default/explorer/worker without config files and refuses
+inherited role config files or replacement subagent developer instructions,
+including aggregated agents/features origin keys that can conceal nested settings.
+Native child configuration reapplies the parent's sandbox, approvals and cwd.
+
+Generation-local child ownership requires both activity attribution and stable
+`thread/read` source identity, exact effective cwd and parent/depth. Early
+notifications remain bounded and undisclosed until proof. Each child has its
+own turn identity, file-path cache, mapper and prefixed host tool IDs. Every
+child update carries SDK SubagentMeta, including buffered text and diffs;
+root usage and turn accounting remain separate. An acknowledged event reader
+prevents prefetched root completion overtaking newly attributed child output.
+Parent completion/cancellation drains permissions and interrupts active children;
+unresponsive cleanup aborts the owned app-server generation. Unknown or
+conflicting ownership never receives host permission. The general routing
+budget remains 128 total retained threads; this can fail closed before native
+capacity on long sessions with many historical children.
+
+Offline session and actual SDK-transport tests cover early output, colliding
+native tool IDs in two children, foreign-source rejection, child approval
+cancellation with a responsive sibling, idle reload, and parent completion
+while a child is active. Regression checks reproduced and fixed stale parent
+activity reviving a completed child and connection-key fragments escaping
+per-message redaction. The immutable session sanitizer now combines MCP and
+connection credentials before mapping parent/child streams. Neither test uses
+real accounts, model billing or the production Arvel launcher.
+
+Windows-only tests cover the SDK's standalone executable and npm-style shim,
+quoted arguments, initialization and Job Object process-tree termination. CI
+also captures stable readiness using pinned Codex 0.164.0 in a fresh private
+home, without login or setup/start. These tests are prepared, not certified
+native passes. The prior Windows job 122881873396 on run 40707049140 has zero
+steps; its GitHub annotation explicitly reports failed account payments or a
+spending limit. A fresh rerun (attempt 2) repeats that exact allocation failure
+on Windows job 123029541419 and Linux job 123029540965, with zero steps; this
+rerun checks current runner availability at the older G4 revision, not G5 code. Cross-builds and the Linux readiness fixture do not replace
+native Windows acceptance. G5 remains open until the required current-revision
+native CI evidence is obtained.
+
+
+## Owner acceptance and post-release native checks (2026-10-29)
+
+The owner accepts G5 as complete on the verified local implementation and
+explicitly moves native Windows/CI verification to after the v0.1.0 release.
+This overrides the earlier pre-release native-CI completion requirement.
+Prepared native tests remain in place; no native result is relabeled PASS.
+G6 must not reintroduce this deferred check as a pre-release acceptance gate.
+Other release-conformance requirements, private authorization, host sandbox
+guarantees, and separate merge/publication approval remain unchanged.
+
+G5 is accepted complete on branch feat/g5-host-tools-media, implementation
+checkpoint c4f155b. Native CI run 40751856106 still has no executed steps;
+this decision does not change its infrastructure-blocked result. The separate
+post-release backlog records readiness, executable/shim and process-tree
+checks. No beta, merge or publication is authorized by this acceptance.

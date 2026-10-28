@@ -25,8 +25,9 @@ var ErrRouting = errors.New("app-server session routing unavailable")
 
 // Event is an owned, ordered vendor notification.
 type Event struct {
-	Method string
-	Params json.RawMessage
+	Method   string
+	Params   json.RawMessage
+	sequence uint64
 }
 
 type route struct {
@@ -39,15 +40,22 @@ type route struct {
 	cancel          context.CancelFunc
 	items           map[string][]string
 	itemBytes       int
+	parent          string
+	confirmed       bool
+	ready           chan struct{}
+	childLimit      int
+	turn            string
+	turnActive      bool
 }
 
 type generation struct {
-	id      uint64
-	setups  int
-	bytes   int
-	stopped bool
-	routes  map[string]*route
-	staged  map[string][]Event
+	id       uint64
+	setups   int
+	bytes    int
+	stopped  bool
+	routes   map[string]*route
+	staged   map[string][]Event
+	sequence uint64
 }
 
 // ApprovalHandler bridges a routed request without holding routing locks.
@@ -70,6 +78,7 @@ func NewRouter() *Router {
 var routedNotifications = []string{
 	"thread/started", "thread/status/changed", "turn/started", "turn/completed",
 	"thread/tokenUsage/updated", "error",
+	"mcpServer/startupStatus/updated",
 	"turn/plan/updated", "turn/diff/updated", "item/started", "item/completed",
 	"item/agentMessage/delta", "item/reasoning/summaryTextDelta", "item/reasoning/summaryPartAdded",
 }
@@ -113,7 +122,7 @@ func (r *Router) Prepare(id uint64) (func(), error) {
 			r.mu.Lock()
 			defer r.mu.Unlock()
 			g.setups--
-			if g.setups == 0 {
+			if g.setups == 0 && !activeChildren(g) {
 				for _, events := range g.staged {
 					for _, event := range events {
 						g.bytes -= len(event.Params)
@@ -138,7 +147,7 @@ func (r *Router) Register(id uint64, thread string) (*Subscription, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	g := r.current
-	if g == nil || g.id != id || g.stopped || thread == "" || len(g.routes) >= maxThreads || g.routes[thread] != nil {
+	if g == nil || g.id != id || g.stopped || thread == "" || len(thread) > 256 || len(g.routes) >= maxThreads || g.routes[thread] != nil {
 		return nil, ErrRouting
 	}
 	q := &route{events: g.staged[thread], wake: make(chan struct{}, 1), done: make(chan struct{}), items: make(map[string][]string)}
@@ -183,14 +192,18 @@ func (s *Subscription) Next(ctx context.Context) (Event, error) {
 
 // BeginTurn installs approval handling before any outbound turn request. The
 // handler verifies turn identity and runs without the router lock.
-func (s *Subscription) BeginTurn(handler ApprovalHandler) (func(), error) {
+func (s *Subscription) BeginTurn(handler ApprovalHandler, contexts ...context.Context) (func(), error) {
 	s.router.mu.Lock()
 	defer s.router.mu.Unlock()
 	q := s.route
 	if q.err != nil || q.handler != nil || handler == nil {
 		return nil, ErrRouting
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	parent := context.Background()
+	if len(contexts) > 0 {
+		parent = contexts[0]
+	}
+	ctx, cancel := context.WithCancel(parent)
 	q.handler, q.approvalContext, q.cancel = handler, ctx, cancel
 	clear(q.items)
 	q.itemBytes = 0
@@ -206,6 +219,14 @@ func (s *Subscription) BeginTurn(handler ApprovalHandler) (func(), error) {
 				q.approvalContext = nil
 				clear(q.items)
 				q.itemBytes = 0
+				for _, child := range s.generation.routes {
+					if child.parent == s.thread && child.cancel != nil {
+						child.cancel()
+						child.handler = nil
+						child.cancel = nil
+					}
+				}
+				discardUnclaimed(s.generation)
 			}
 		})
 	}, nil
@@ -231,6 +252,17 @@ func (s *Subscription) Close() {
 	}
 	closeRoute(s.route)
 	delete(s.generation.routes, s.thread)
+	for thread, child := range s.generation.routes {
+		if child.parent != s.thread {
+			continue
+		}
+		for _, event := range child.events {
+			s.generation.bytes -= len(event.Params)
+		}
+		closeRoute(child)
+		delete(s.generation.routes, thread)
+	}
+	discardUnclaimed(s.generation)
 }
 
 // Stopped invalidates subscriptions once without requesting another process stop.
@@ -310,6 +342,10 @@ func (r *Router) enqueue(id uint64, method string, raw json.RawMessage) {
 	if method == "thread/started" {
 		thread = identity.Thread.ID
 	}
+	// Nullable global status cannot be attributed to a session.
+	if method == "mcpServer/startupStatus/updated" && thread == "" {
+		return
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	g := r.current
@@ -321,14 +357,54 @@ func (r *Router) enqueue(id uint64, method string, raw json.RawMessage) {
 		return
 	}
 	q := g.routes[thread]
-	if q == nil && g.setups == 0 {
+	if q == nil && g.setups == 0 && !activeChildren(g) {
 		return
 	}
 	if g.bytes+len(raw) > maxBytes {
 		r.stopLocked(g, true)
 		return
 	}
-	event := Event{Method: method, Params: append(json.RawMessage(nil), raw...)}
+	if q != nil && (method == "item/started" || method == "item/completed") {
+		ownerThread, ownerRoute := thread, q
+		if q.parent != "" {
+			ownerThread = q.parent
+			ownerRoute = g.routes[q.parent]
+		}
+		if ownerRoute != nil && ownerRoute.childLimit > 0 && ownerRoute.handler != nil {
+			var activity struct {
+				Item struct {
+					Type  string `json:"type"`
+					Child string `json:"agentThreadId"`
+				} `json:"item"`
+			}
+			if json.Unmarshal(raw, &activity) != nil {
+				r.stopLocked(g, true)
+				return
+			}
+			if activity.Item.Type == "subAgentActivity" {
+				parent := &Subscription{router: r, generation: g, thread: ownerThread, route: ownerRoute}
+				if _, err := parent.claimChildLocked(activity.Item.Child); err != nil {
+					r.stopLocked(g, true)
+					return
+				}
+			}
+		}
+	}
+
+	g.sequence++
+	event := Event{Method: method, Params: append(json.RawMessage(nil), raw...), sequence: g.sequence}
+	childEvent := false
+	if q != nil && q.parent != "" {
+		childEvent = true
+		if !cacheItem(q, event) {
+			r.stopLocked(g, true)
+			return
+		}
+		if q.confirmed {
+			q = g.routes[q.parent]
+			childEvent = true
+		}
+	}
 	if q == nil {
 		if len(g.staged[thread]) >= maxEvents || (g.staged[thread] == nil && len(g.staged) >= maxThreads) {
 			r.stopLocked(g, true)
@@ -336,7 +412,7 @@ func (r *Router) enqueue(id uint64, method string, raw json.RawMessage) {
 		}
 		g.staged[thread] = append(g.staged[thread], event)
 	} else {
-		if len(q.events) >= maxEvents || !cacheItem(q, event) {
+		if len(q.events) >= maxEvents || (!childEvent && !cacheItem(q, event)) {
 			r.stopLocked(g, true)
 			return
 		}
@@ -350,6 +426,21 @@ func (r *Router) enqueue(id uint64, method string, raw json.RawMessage) {
 }
 
 func cacheItem(q *route, event Event) bool {
+	if q.parent != "" && (event.Method == "turn/started" || event.Method == "turn/completed") {
+		var lifecycle schema.TurnEvent
+		if json.Unmarshal(event.Params, &lifecycle) != nil || lifecycle.Turn.ID == "" || len(lifecycle.Turn.ID) > 256 {
+			return false
+		}
+		if event.Method == "turn/started" {
+			q.turn = lifecycle.Turn.ID
+			q.turnActive = true
+			clear(q.items)
+			q.itemBytes = 0
+		} else if q.turn == lifecycle.Turn.ID {
+			q.turnActive = false
+		}
+		return true
+	}
 	if event.Method != "item/started" && event.Method != "item/completed" {
 		return true
 	}
@@ -417,28 +508,57 @@ func (r *Router) request(ctx context.Context, id uint64, method string, raw json
 	if json.Unmarshal(raw, &identity) != nil || identity.ThreadID == "" {
 		return denial(method), nil
 	}
-	// Permissions grants and MCP delivery are not enabled in G3.
-	if method != "item/commandExecution/requestApproval" && method != "item/fileChange/requestApproval" {
+	// Native permission-profile grants remain disabled.
+	if method != "item/commandExecution/requestApproval" && method != "item/fileChange/requestApproval" && method != "mcpServer/elicitation/request" {
 		return denial(method), nil
 	}
-	r.mu.Lock()
-	g := r.current
-	if g == nil || g.id != id || g.stopped {
+	var handler ApprovalHandler
+	var turnContext context.Context
+	for {
+		r.mu.Lock()
+		g := r.current
+		if g == nil || g.id != id || g.stopped {
+			r.mu.Unlock()
+			return denial(method), nil
+		}
+		q := g.routes[identity.ThreadID]
+		if q == nil {
+			r.mu.Unlock()
+			return denial(method), nil
+		}
+		if q.parent != "" && !q.confirmed {
+			parent := g.routes[q.parent]
+			if parent == nil || parent.handler == nil {
+				r.mu.Unlock()
+				return denial(method), nil
+			}
+			ready, done := q.ready, parent.approvalContext.Done()
+			r.mu.Unlock()
+			select {
+			case <-ready:
+				continue
+			case <-done:
+				return denial(method), nil
+			case <-ctx.Done():
+				return denial(method), nil
+			}
+		}
+		if q.handler == nil {
+			r.mu.Unlock()
+			return denial(method), nil
+		}
+		handler, turnContext = q.handler, q.approvalContext
 		r.mu.Unlock()
-		return denial(method), nil
+		break
 	}
-	q := g.routes[identity.ThreadID]
-	if q == nil || q.handler == nil {
-		r.mu.Unlock()
-		return denial(method), nil
-	}
-	handler, turnContext := q.handler, q.approvalContext
-	r.mu.Unlock()
 	callContext, cancel := context.WithCancel(ctx)
 	stop := context.AfterFunc(turnContext, cancel)
 	defer func() { stop(); cancel() }()
 	result, err := handler(callContext, method, raw)
 	if callContext.Err() != nil {
+		if method == "mcpServer/elicitation/request" {
+			return schema.ElicitationResponse{Action: "cancel"}, nil
+		}
 		return schema.DecisionResponse{Decision: "cancel"}, nil
 	}
 	if err != nil {

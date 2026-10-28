@@ -43,9 +43,9 @@ type Peer struct {
 	log      *slog.Logger
 }
 
-var clientMethods = map[string]bool{"initialize": true, "account/read": true, "account/login/start": true, "account/login/cancel": true, "account/logout": true, "account/rateLimits/read": true, "model/list": true, "config/read": true, "configRequirements/read": true, "thread/start": true, "thread/resume": true, "thread/unsubscribe": true, "turn/start": true, "turn/interrupt": true}
+var clientMethods = map[string]bool{"windowsSandbox/readiness": true, "skills/list": true, "thread/read": true, "initialize": true, "account/read": true, "account/login/start": true, "account/login/cancel": true, "account/logout": true, "account/rateLimits/read": true, "model/list": true, "config/read": true, "configRequirements/read": true, "thread/start": true, "thread/resume": true, "thread/unsubscribe": true, "turn/start": true, "turn/interrupt": true}
 var serverMethods = []string{"item/commandExecution/requestApproval", "item/fileChange/requestApproval", "item/permissions/requestApproval", "mcpServer/elicitation/request"}
-var notificationMethods = []string{"account/login/completed", "account/updated", "account/rateLimits/updated", "thread/started", "thread/status/changed", "turn/started", "turn/completed", "turn/plan/updated", "turn/diff/updated", "item/started", "item/completed", "item/agentMessage/delta", "item/reasoning/summaryTextDelta", "item/reasoning/summaryPartAdded", "item/reasoning/textDelta", "thread/tokenUsage/updated"}
+var notificationMethods = []string{"mcpServer/startupStatus/updated", "account/login/completed", "account/updated", "account/rateLimits/updated", "thread/started", "thread/status/changed", "turn/started", "turn/completed", "turn/plan/updated", "turn/diff/updated", "item/started", "item/completed", "item/agentMessage/delta", "item/reasoning/summaryTextDelta", "item/reasoning/summaryPartAdded", "item/reasoning/textDelta", "thread/tokenUsage/updated"}
 
 // NewPeer does not start goroutines; the owner must close input to unblock Serve.
 func NewPeer(input io.Reader, output io.Writer, o PeerOptions) *Peer {

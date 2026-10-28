@@ -113,3 +113,61 @@ unavailable stub, not automatic host-launcher detection. Implement its real
 adapter only against the documented M5c invocation/lifecycle once that interface
 exists. Adding M0 completion evidence
 alone must not turn that unavailable probe into a reported pass.
+
+
+## G5 continuation and application testing (2026-10-28)
+
+The host contract was rechecked read-only at revision
+`183b2e0ea559a518ec3a84732c35d620c0c72532`. Its accepted ADR-14 and
+`docs/sandbox-contract.md` retain independent acceptance stages. Host M3 uses
+released SDK echo/fake providers and a fake catalog. M5c tests generic plugins
+and descendants. Neither acceptance stage depends on releasing this particular
+provider; a real-provider smoke is additional evidence once both sides exist.
+No host files were changed.
+
+The negative G5 skills recording in FINDINGS demonstrates a separate unresolved
+adapter guarantee: private CODEX_HOME does not exclude ambient user/project
+skills. It does not block implementation and SDK testing of independent MCP,
+read-only discovery, subagent reporting, images or Windows lifecycle. It still
+blocks claiming strict assigned-skill isolation or full G5 completion. The
+current host contract does not promise a per-session skill-root allowlist or
+filesystem overlay; do not assert that M5c automatically solves it. The exact
+mechanism must be designed and verified, or the product scope explicitly
+amended by the owner.
+
+An integration prerelease can be prepared as a separate delivery decision,
+with accurate capability declarations and explicit limitations. The owner has
+prioritized obtaining an artifact consumable by the application; acceptance of
+an early beta with the known strict-skills gap is still pending. A beta label
+alone waives neither the skill-isolation contract nor SDK/platform/review gates.
+Publication and any product-scope amendment require the owner's explicit
+choice; none is inferred from a general request to make progress.
+
+
+Owner decision (2026-10-28): no beta/prerelease; target full v0.1.0. The
+application agent owns preparation of the generic strict assigned-skill
+isolation contract. Independent plugin features and SDK/mockhost tests continue
+while that contract is prepared. The preceding beta proposal is superseded.
+Strict skill isolation and full G5/G6 completion remain unverified until the
+actual contract and applicable evidence exist; sandbox.mode alone is not proof.
+
+
+## Superseding skills contract and SDK (2026-10-29)
+
+The owner accepts a separate common skill catalogue per provider with explicit
+source/owner. Spaces and roles select only from the corresponding catalogue;
+Arvel-managed selections support enable/disable/removal at safe session boundaries.
+External/global vendor skills may remain visible and must be labeled when they
+cannot be disabled. Disabling a managed copy never claims to disable its external
+original. This removes the earlier strict external-skill masking release gate;
+the historical counterexample remains valid evidence. Filesystem/network/command
+permissions, private authentication and M5c sandbox requirements are unchanged.
+The owner still targets full v0.1.0, without beta/prerelease delivery.
+
+SDK v0.1.3 (92ac2e29b4da68bf8300fa1d641eeca29134c678) now specifies this
+policy in PROTOCOL §7.7 and retains pluginApi 1 / existing Go and wire fields.
+Catalogue provenance and selections stay in host-local state. The plugin pins
+v0.1.3 and its release checker; the inspected host/host/go.mod still pins v0.1.2
+at this checkpoint, so the application agent should update its SDK dependency.
+The earlier "v0.1.2 in both repositories" statement describes its dated inspection.
+No host files or SDK source were modified from this plugin checkout.

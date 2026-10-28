@@ -31,6 +31,15 @@ func TestDiagnostics_SplitSecretsAndOversizedLines(t *testing.T) {
 	}
 }
 
+func TestDiagnostics_DropsUnregisteredMCPSecrets(t *testing.T) {
+	var out bytes.Buffer
+	s := stderrLines{log: logx.NewWith("test", logx.Options{Writer: &out, Level: slog.LevelDebug})}
+	_, _ = s.Write([]byte("MCP credentials: short-tool-secret\n"))
+	if strings.Contains(out.String(), "short-tool-secret") {
+		t.Fatal("session-only MCP credentials leaked through process stderr")
+	}
+}
+
 func TestPeer_RPCErrorOmitsSecretData(t *testing.T) {
 	const secret = "opaque-login-secret-canary"
 	p, scan, server, ctx := peerHarness(t, PeerOptions{})

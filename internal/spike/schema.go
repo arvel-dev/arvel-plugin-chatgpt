@@ -122,6 +122,9 @@ func LoadBundle(ctx context.Context, dir string) (*Bundle, error) {
 			if name == "ClientRequest.json" && method.Enum[0] == "configRequirements/read" {
 				m.Response = b.files["ConfigRequirementsReadResponse.json"]
 			}
+			if name == "ClientRequest.json" && method.Enum[0] == "windowsSandbox/readiness" {
+				m.Response = b.files["WindowsSandboxReadinessResponse.json"]
+			}
 			b.methods[key] = m
 		}
 	}

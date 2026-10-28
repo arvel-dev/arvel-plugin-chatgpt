@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/mail"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -39,6 +40,7 @@ type dependencies struct {
 	poll, timeout time.Duration
 	now           func() time.Time
 	hooks         Hooks
+	goos          string
 }
 
 // Manager serializes account operations and owns the process and refresh worker.
@@ -98,6 +100,9 @@ func newManager(meta protocol.InitMeta, changed func(protocol.Status), logger *s
 	}
 	if d.now == nil {
 		d.now = time.Now
+	}
+	if d.goos == "" {
+		d.goos = runtime.GOOS
 	}
 	if logger == nil {
 		logger = logx.New("chatgpt-connection")
@@ -234,7 +239,7 @@ func (m *Manager) status(ctx context.Context, allowStart bool) protocol.Status {
 		m.refreshQuota(ctx)
 	}
 	m.signalUsage()
-	return m.loginStatus(st)
+	return m.windowsStatus(ctx, m.loginStatus(st))
 }
 
 func (m *Manager) start(ctx context.Context) (protocol.Status, bool) {

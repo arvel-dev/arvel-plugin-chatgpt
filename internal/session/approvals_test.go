@@ -165,16 +165,13 @@ func TestRouter_UnsupportedProducersNeverAskOrGrant(t *testing.T) {
 		return map[string]string{"decision": "accept"}, nil
 	})
 	defer end()
-	for _, method := range []string{"item/permissions/requestApproval", "mcpServer/elicitation/request"} {
+	for _, method := range []string{"item/permissions/requestApproval"} {
 		got, err := opts.Requests[method](testContext(t), json.RawMessage(`{"threadId":"thread","turnId":"turn","itemId":"item","permissions":{"network":{"enabled":true}},"serverName":"Arvel","message":"Allow tool"}`))
 		if err != nil {
 			t.Fatal(err)
 		}
 		raw, _ := json.Marshal(got)
 		want := `{"permissions":{},"scope":"turn"}`
-		if method == "mcpServer/elicitation/request" {
-			want = `{"action":"decline","content":null}`
-		}
 		if string(raw) != want {
 			t.Fatal(string(raw))
 		}

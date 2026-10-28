@@ -8,6 +8,7 @@ import (
 	"maps"
 
 	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/appserver"
+	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/sanitize"
 	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/usage"
 	"github.com/arvel-dev/arvel-sdk/protocol"
 )
@@ -22,6 +23,7 @@ type Hooks struct {
 
 // Runtime borrows one manager-owned process. A caller never closes Client itself.
 type Runtime struct {
+	Clean      *sanitize.Cleaner
 	Client     Client
 	Generation uint64
 	Home       string
@@ -59,7 +61,7 @@ func (m *Manager) Acquire(ctx context.Context) (Runtime, error) {
 	}
 	m.borrowed = true
 	quota, active := m.quotaRuntime()
-	return Runtime{Client: m.client, Generation: m.generation, Home: m.cfg.home, Kind: m.cfg.kind, Quota: quota, ActiveTurn: active}, nil
+	return Runtime{Clean: sanitize.New([]string{m.cfg.key}), Client: m.client, Generation: m.generation, Home: m.cfg.home, Kind: m.cfg.kind, Quota: quota, ActiveTurn: active}, nil
 }
 
 // Abort stops only the specified generation. Retiring process cleanup completes
