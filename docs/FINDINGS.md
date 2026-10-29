@@ -1409,3 +1409,30 @@ only its unmodified generated archives/checksums/manifest. Native verification
 remains in the accepted post-release backlog, and the normal CI workflows stay
 available for later releases. Real host M5c certification and interactive
 browser/device-code/approval checks remain separate from synthetic conformance.
+
+## Cross-process resume repair (2026-10-29)
+
+Arvel's native darwin/arm64 integration with published v0.1.0 and Codex
+0.164.0 reproduced a failure on the first prompt after restarting the provider:
+`Codex returned inconsistent turn identities`. Loading the native thread itself
+succeeded. A fresh provider process had no LastTurn snapshot and discarded the
+terminal turn identities returned by stable `thread/resume`. Delayed historical
+events could therefore bind the new turn to an old identity.
+
+The provider now restores bounded terminal turn identities from that response
+and excludes their delayed text, lifecycle and usage events from the next turn.
+Unknown or inconsistent identities still fail closed. No SDK wire extension,
+credential migration or vendor-sandbox bypass is involved. The regression first
+failed for historical delta, lifecycle and usage cases, then passed after the
+repair. A typed response test replays the existing sanitized resume fixture.
+Freshly regenerated 0.164.0 schemas pass the production-surface drift guard
+without changing the committed baseline.
+
+A local 0.1.1 candidate from `fix/session-resume-turn-identity` was explicitly
+installed through Arvel's normal checksum-verifying installer, retaining the
+dedicated test connection's own login. The sequence new → prompt → provider
+restart → load → prompt → cancel passed, including suppression of historical
+feed updates. This is local candidate evidence, not a published 0.1.1 release
+or native Linux/Windows certification. Full race, vet and static checks pass.
+Offline release conformance passes 81 checks with no failures or skips; an
+earlier invocation timed out during initialize and was rerun unchanged.

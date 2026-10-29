@@ -37,7 +37,8 @@ type ThreadUnsubscribeParams struct {
 // ThreadResponse carries the persisted identity returned by start/resume.
 type ThreadResponse struct {
 	Thread struct {
-		ID string `json:"id"`
+		ID    string `json:"id"`
+		Turns []Turn `json:"turns"`
 	} `json:"thread"`
 	Model string `json:"model"`
 }
