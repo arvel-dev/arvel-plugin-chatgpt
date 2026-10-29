@@ -1,0 +1,40 @@
+name: Schema drift
+on:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  schema-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate latest stable app-server schema
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/schema-drift"
+          npm install --prefix "$RUNNER_TEMP/schema-drift/tool" --ignore-scripts --no-audit --no-fund @openai/codex@latest
+          cli="$RUNNER_TEMP/schema-drift/tool/node_modules/.bin/codex"
+          "$cli" --version > "$RUNNER_TEMP/schema-drift/version.txt"
+          "$cli" app-server generate-json-schema --out "$RUNNER_TEMP/schema-drift/candidate"
+      - name: Compare the production schema surface
+        shell: bash
+        run: |
+          go run ./cmd/schema-drift --baseline testdata/schema/0.164.0 --candidate "$RUNNER_TEMP/schema-drift/candidate" --surface testdata/schema/0.164.0/production-surface.json > "$RUNNER_TEMP/schema-drift/report.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: schema-drift
+          path: |
+            ${{ runner.temp }}/schema-drift/version.txt
+            ${{ runner.temp }}/schema-drift/candidate
+            ${{ runner.temp }}/schema-drift/report.json
+          if-no-files-found: warn

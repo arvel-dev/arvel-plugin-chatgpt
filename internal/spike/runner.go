@@ -413,7 +413,7 @@ func compareSchema(stage, existing string) error {
 		if err != nil {
 			return err
 		}
-		if entry.IsDir() || filepath.Ext(path) != ".json" || entry.Name() == "surface.json" || entry.Name() == "provenance.json" {
+		if entry.IsDir() || filepath.Ext(path) != ".json" || entry.Name() == "surface.json" || entry.Name() == "production-surface.json" || entry.Name() == "provenance.json" {
 			return nil
 		}
 		rel, err := filepath.Rel(existing, path)

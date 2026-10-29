@@ -49,7 +49,7 @@ func LoadBundle(ctx context.Context, dir string) (*Bundle, error) {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if entry.IsDir() || filepath.Ext(path) != ".json" || entry.Name() == "surface.json" {
+		if entry.IsDir() || filepath.Ext(path) != ".json" || entry.Name() == "surface.json" || entry.Name() == "production-surface.json" {
 			return nil
 		}
 		data, err := os.ReadFile(path)

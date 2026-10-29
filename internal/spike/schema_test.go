@@ -3,6 +3,7 @@
 package spike_test
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/arvel-dev/arvel-plugin-chatgpt/internal/spike"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
@@ -31,7 +33,7 @@ func recordedSchemas(t *testing.T) (*jsonschema.Compiler, []string) {
 		if err != nil {
 			return err
 		}
-		if entry.IsDir() || filepath.Ext(path) != ".json" || entry.Name() == "surface.json" || entry.Name() == "provenance.json" {
+		if entry.IsDir() || filepath.Ext(path) != ".json" || entry.Name() == "surface.json" || entry.Name() == "production-surface.json" || entry.Name() == "provenance.json" {
 			return nil
 		}
 		file, err := os.Open(path)
@@ -103,5 +105,13 @@ func TestApprovalSchemas_RequireMethodSpecificPayloads(t *testing.T) {
 				t.Fatalf("valid=%t, want %t: %v", err == nil, tc.valid, err)
 			}
 		})
+	}
+}
+
+func TestRecordedBundle_IgnoresProductionInventoryMetadata(t *testing.T) {
+	// The production inventory is a method list, not a JSON Schema document.
+	// The real bundle must still load and validate historical fixtures offline.
+	if _, err := spike.LoadBundle(context.Background(), filepath.Join("..", "..", "testdata", "schema", "0.164.0")); err != nil {
+		t.Fatal(err)
 	}
 }

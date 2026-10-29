@@ -1,0 +1,183 @@
+[
+  {
+    "envelope": "ClientNotification.json",
+    "method": "initialized"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "account/login/cancel",
+    "response": "v2/CancelLoginAccountResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "account/login/start",
+    "response": "v2/LoginAccountResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "account/logout",
+    "response": "v2/LogoutAccountResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "account/rateLimits/read",
+    "response": "v2/GetAccountRateLimitsResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "account/read",
+    "response": "v2/GetAccountResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "config/read",
+    "response": "v2/ConfigReadResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "configRequirements/read",
+    "response": "v2/ConfigRequirementsReadResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "initialize",
+    "response": "v1/InitializeResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "model/list",
+    "response": "v2/ModelListResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "skills/list",
+    "response": "v2/SkillsListResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "thread/read",
+    "response": "v2/ThreadReadResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "thread/resume",
+    "response": "v2/ThreadResumeResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "thread/start",
+    "response": "v2/ThreadStartResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "thread/unsubscribe",
+    "response": "v2/ThreadUnsubscribeResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "turn/interrupt",
+    "response": "v2/TurnInterruptResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "turn/start",
+    "response": "v2/TurnStartResponse.json"
+  },
+  {
+    "envelope": "ClientRequest.json",
+    "method": "windowsSandbox/readiness",
+    "response": "v2/WindowsSandboxReadinessResponse.json"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "account/login/completed"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "account/rateLimits/updated"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "account/updated"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "error"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "item/agentMessage/delta"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "item/completed"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "item/reasoning/summaryPartAdded"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "item/reasoning/summaryTextDelta"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "item/reasoning/textDelta"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "item/started"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "mcpServer/startupStatus/updated"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "thread/started"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "thread/status/changed"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "thread/tokenUsage/updated"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "turn/completed"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "turn/diff/updated"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "turn/plan/updated"
+  },
+  {
+    "envelope": "ServerNotification.json",
+    "method": "turn/started"
+  },
+  {
+    "envelope": "ServerRequest.json",
+    "method": "item/commandExecution/requestApproval",
+    "response": "CommandExecutionRequestApprovalResponse.json"
+  },
+  {
+    "envelope": "ServerRequest.json",
+    "method": "item/fileChange/requestApproval",
+    "response": "FileChangeRequestApprovalResponse.json"
+  },
+  {
+    "envelope": "ServerRequest.json",
+    "method": "item/permissions/requestApproval",
+    "response": "PermissionsRequestApprovalResponse.json"
+  },
+  {
+    "envelope": "ServerRequest.json",
+    "method": "mcpServer/elicitation/request",
+    "response": "McpServerElicitationRequestResponse.json"
+  }
+]
