@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -19,6 +20,7 @@ import (
 	"github.com/arvel-dev/arvel-sdk/plugin"
 	"github.com/arvel-dev/arvel-sdk/protocol"
 	"github.com/arvel-dev/arvel-sdk/testkit/mockhost"
+	acp "github.com/coder/acp-go-sdk"
 )
 
 // TestMain doubles as a synthetic Codex executable. It never invokes a vendor/network.
@@ -441,10 +443,25 @@ func TestProvider_FakeVendorThroughSDK(t *testing.T) {
 			if err != nil || models.Default != "gpt-6.1-sol" {
 				t.Fatalf("models %+v %v", models, err)
 			}
-			if _, err := h.NewSession(protocol.SessionMeta{}); err == nil {
-				t.Fatal("unimplemented sessions enabled")
+			id, sessionErr := h.NewSession(protocol.SessionMeta{})
+			if kind == "api_key" {
+				if sessionErr != nil || id == "" {
+					t.Fatalf("private API session: %v", sessionErr)
+				}
+				result, err := h.Prompt(id, []acp.ContentBlock{acp.TextBlock("hello")})
+				if err != nil || result.StopReason != acp.StopReasonEndTurn {
+					t.Fatalf("private API turn: %v", err)
+				}
+			} else {
+				var rpc *protocol.RPCError
+				if !errors.As(sessionErr, &rpc) || rpc.Code != protocol.CodeServerError {
+					t.Fatalf("legacy session must be denied: %v", sessionErr)
+				}
 			}
 			h.Shutdown()
+			if err := h.CloseWithError(); err != nil {
+				t.Fatalf("SDK teardown: %v", err)
+			}
 			for _, secret := range []string{"sk-integration-canary", "sk-ambient-canary", "ambient-token", "host-token", "private@example.invalid"} {
 				if strings.Contains(h.Stdout()+h.Stderr(), secret) {
 					t.Fatal("credential or identity leaked")

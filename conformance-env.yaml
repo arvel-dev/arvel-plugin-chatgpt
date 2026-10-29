@@ -1,0 +1,13 @@
+# Synthetic inputs only. cmd/check-conformance supplies the absolute fake codexPath.
+initialize:
+  connection:
+    kind: api_key
+    secrets:
+      apiKey: sk-conformance-synthetic
+checks:
+  concurrency:
+    prompt: [{type: text, text: 'conformance:overlap'}]
+  cancel:
+    prompt: [{type: text, text: 'conformance:hold'}]
+  busy:
+    prompt: [{type: text, text: 'conformance:hold'}]

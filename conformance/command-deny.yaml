@@ -1,0 +1,49 @@
+{
+  "name": "command-deny",
+  "steps": [
+    {
+      "call": "session/new",
+      "params": {
+        "cwd": "{{workspace}}",
+        "mcpServers": [],
+        "_meta": {
+          "arvel": {
+            "permissions": {
+              "commands": {
+                "default": "deny"
+              }
+            }
+          }
+        }
+      },
+      "save": {
+        "session": "$.sessionId"
+      }
+    },
+    {
+      "call": "session/prompt",
+      "params": {
+        "sessionId": "{{session}}",
+        "prompt": [
+          {
+            "type": "text",
+            "text": "approve"
+          }
+        ]
+      },
+      "expect": {
+        "stopReason": "end_turn"
+      },
+      "expectUpdates": [
+        {
+          "sessionUpdate": "agent_message_chunk",
+          "subset": {
+            "content": {
+              "text": "decline"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "name": "mcp-allow",
+  "steps": [
+    {
+      "call": "session/new",
+      "params": {
+        "cwd": "{{workspace}}",
+        "mcpServers": [
+          {
+            "name": "arvel-fixture",
+            "command": "synthetic-never-executed",
+            "args": [],
+            "env": []
+          }
+        ],
+        "_meta": {
+          "arvel": {
+            "permissions": {
+              "mcp": {
+                "default": "allow"
+              }
+            }
+          }
+        }
+      },
+      "save": {
+        "session": "$.sessionId"
+      }
+    },
+    {
+      "call": "session/prompt",
+      "params": {
+        "sessionId": "{{session}}",
+        "prompt": [
+          {
+            "type": "text",
+            "text": "mcp-ask"
+          }
+        ]
+      },
+      "expect": {
+        "stopReason": "end_turn"
+      },
+      "answerPermissions": "allow_once"
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "name": "stream-resume",
+  "steps": [
+    {
+      "call": "_arvel/status",
+      "expect": {
+        "state": "ready"
+      }
+    },
+    {
+      "call": "session/new",
+      "params": {
+        "cwd": "{{workspace}}",
+        "mcpServers": []
+      },
+      "save": {
+        "session": "$.sessionId"
+      }
+    },
+    {
+      "call": "session/prompt",
+      "params": {
+        "sessionId": "{{session}}",
+        "prompt": [
+          {
+            "type": "text",
+            "text": "hello"
+          }
+        ]
+      },
+      "expect": {
+        "stopReason": "end_turn"
+      },
+      "expectUpdates": [
+        {
+          "sessionUpdate": "agent_message_chunk",
+          "subset": {
+            "content": {
+              "text": "synthetic response"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "call": "session/load",
+      "params": {
+        "sessionId": "{{session}}",
+        "cwd": "{{workspace}}",
+        "mcpServers": []
+      }
+    },
+    {
+      "call": "session/prompt",
+      "params": {
+        "sessionId": "{{session}}",
+        "prompt": [
+          {
+            "type": "text",
+            "text": "continue"
+          }
+        ]
+      },
+      "expect": {
+        "stopReason": "end_turn"
+      }
+    }
+  ]
+}

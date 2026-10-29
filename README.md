@@ -172,7 +172,7 @@ is covered by source-derived offline tests.
 |---|---|---|
 | "codex not found" | CLI not installed or not on PATH | `npm i -g @openai/codex`, or set *Path to codex* |
 | Connection stuck on "Sign in" | Browser sign-in was not finished | Click Sign in again; on a server use the code flow |
-| "Key rejected" | Wrong or revoked key | Create a new key on platform.openai.com |
+| API request rejects the key | Invalid, revoked or unusable API key; Ready only means configured locally | Check the key and account on platform.openai.com |
 | Windows: sandbox warning | Codex's Windows sandbox is not set up | Follow the hint in Arvel, or run Codex once in a terminal |
 | Runs stop with "limit reached" | Plan window exhausted | Wait for reset, or add a fallback executor |
 
@@ -186,7 +186,10 @@ The plugin talks only to the `codex` program on the same machine. Codex talks to
 |---|---|---|
 | 0.1.x (in development) | 0.164.0 minimum and exercised session baseline | 1 |
 
-Weekly checks of new Codex releases are planned for the conformance milestone.
+The weekly and manually triggered `schema-drift` workflow checks the production
+schema surface against the latest CLI. A schema pass does not establish tested
+runtime support for that version. Native Windows/CI acceptance is deferred until
+after v0.1.0; cross-builds are not native verification.
 
 ## Disclaimer
 
@@ -194,14 +197,14 @@ Independent open-source project, not affiliated with or endorsed by OpenAI. "Ope
 
 ## Development
 
-Requires Go 1.27.2 or newer for arvel-sdk v0.1.3. Connection status, browser and
-device-code sign-in, isolated API-key configuration and model discovery are
-implemented, together with streaming sessions, command/file approvals, cancellation
-and recovery. Usage mapping, host tool delivery and release conformance remain
-unimplemented. Native host sandbox certification is still pending the Arvel host
-integration matrix; synthetic-backend CLI probes do not certify real account or
-model behavior. See [bootstrap findings](docs/FINDINGS.md) for measured CLI behavior and
-outstanding verification. Minimal Linux containers need a system CA bundle.
+Requires Go 1.27.2 or newer for arvel-sdk v0.2.0. Connections, private login,
+streaming sessions, approvals, recovery, usage, host tools, managed skills,
+images and native subagents are implemented. Offline release conformance runs
+the production executable against a separate synthetic app-server. Native host
+sandbox certification still requires the Arvel M5c integration matrix; synthetic
+CLI probes do not certify real account/model behavior. See [findings](docs/FINDINGS.md)
+and [conformance](docs/CONFORMANCE.md) for evidence and limits. Minimal Linux
+containers need a system CA bundle.
 `ARVEL_LOG_LEVEL=debug` enables redacted development diagnostics on stderr.
 `ARVEL_CODEX_BIN` overrides binary discovery only with `ARVEL_DEV=1`; production
 connections use `codexPath` or executable discovery.
@@ -209,11 +212,11 @@ connections use `codexPath` or executable discovery.
 ```bash
 go test -race ./...
 go build -o dist/arvel-plugin-chatgpt ./cmd/arvel-plugin-chatgpt
-arvel-plugin-check --level release --scenarios ./conformance -- ./dist/arvel-plugin-chatgpt
+go run ./cmd/check-conformance --report /tmp/chatgpt-conformance.json
 codex app-server generate-json-schema --out testdata/schema/$(codex --version | awk '{print $NF}')
 ```
 
-Release conformance is a G6 gate; the bootstrap does not pass it yet. Synthetic discovery goldens can be checked with `python3.12 scripts/check-discovery-fixtures.py` (Python 3.11+).
+Release conformance is a required release gate; it uses synthetic inputs without real accounts or model requests. Synthetic discovery goldens can be checked with `python3.12 scripts/check-discovery-fixtures.py` (Python 3.11+).
 
 Fixtures: see [`testdata/fixtures/README.md`](testdata/fixtures/README.md). Validate them offline with `go run ./cmd/record-fixtures verify`. E2E tests: `ARVEL_E2E=1 go test -tags e2e ./e2e/...`.
 

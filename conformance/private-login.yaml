@@ -1,0 +1,66 @@
+{
+  "name": "private-login",
+  "steps": [
+    {
+      "call": "_arvel/status",
+      "expect": {
+        "state": "needs_login"
+      }
+    },
+    {
+      "call": "_arvel/action",
+      "params": {
+        "id": "login"
+      }
+    },
+    {
+      "call": "_arvel/status",
+      "expect": {
+        "state": "ready"
+      }
+    },
+    {
+      "call": "session/new",
+      "params": {
+        "cwd": "{{workspace}}",
+        "mcpServers": []
+      },
+      "save": {
+        "session": "$.sessionId"
+      }
+    },
+    {
+      "call": "session/prompt",
+      "params": {
+        "sessionId": "{{session}}",
+        "prompt": [
+          {
+            "type": "text",
+            "text": "hello"
+          }
+        ]
+      },
+      "expect": {
+        "stopReason": "end_turn"
+      }
+    },
+    {
+      "call": "_arvel/action",
+      "params": {
+        "id": "logout_arvel_login"
+      }
+    },
+    {
+      "call": "_arvel/status",
+      "expect": {
+        "state": "needs_login"
+      }
+    }
+  ],
+  "initialize": {
+    "connection": {
+      "kind": "chatgpt",
+      "config": {}
+    }
+  }
+}

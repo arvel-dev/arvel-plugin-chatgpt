@@ -1,0 +1,30 @@
+{
+  "name": "proxy",
+  "steps": [
+    {
+      "call": "session/new",
+      "params": {
+        "cwd": "{{workspace}}",
+        "mcpServers": []
+      },
+      "save": {
+        "session": "$.sessionId"
+      }
+    },
+    {
+      "call": "session/prompt",
+      "params": {
+        "sessionId": "{{session}}",
+        "prompt": [
+          {
+            "type": "text",
+            "text": "conformance:proxy"
+          }
+        ]
+      },
+      "expect": {
+        "stopReason": "end_turn"
+      }
+    }
+  ]
+}
