@@ -184,7 +184,7 @@ The plugin talks only to the `codex` program on the same machine. Codex talks to
 
 | Plugin | Codex CLI tested | Plugin API |
 |---|---|---|
-| 0.1.x (in development) | 0.164.0 minimum and exercised session baseline | 1 |
+| 0.1.0 | 0.164.0 minimum and exercised session baseline | 1 |
 
 The weekly and manually triggered `schema-drift` workflow checks the production
 schema surface against the latest CLI. A schema pass does not establish tested

@@ -4,44 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-29
+
 ### Added
 
-- Offline release conformance with isolated synthetic dependencies and weekly Codex schema drift checks.
-
-- Native subagents with inherited permissions, child output attribution and cancellation.
-- Windows sandbox readiness diagnostics and SDK executable/shim launch checks.
-
-- Managed workspace skills with automatic/manual invocation, source-preserving copies and safe session cleanup.
-
-- Assigned stdio and HTTP MCP servers with per-tool permissions, one-call approvals, bounded results and visible startup failures.
-
-- Bounded PNG, JPEG and GIF prompts for image-capable models, sent without temporary files.
-
-- Read-only discovery of existing Codex MCP definitions and user/project skills, with secret markers and bounded source reads.
-
-- ChatGPT quota windows, reset times, live usage updates and per-turn token counts.
-- Typed quota, authentication, context and model errors with resumable conversations after quota exhaustion.
-
-- Streaming agent sessions with resumable conversations, model and reasoning options, and local turn budgets.
-- Command and file approval requests, graceful cancellation and shared-process crash recovery.
-
-- ChatGPT browser and device-code sign-in, isolated API-key connections, and live connection status updates.
-- Model discovery with reasoning levels, hidden-default handling, refresh, and a six-hour account-scoped cache.
-
-- Initial provider scaffold and six-platform build configuration.
-- Reusable Codex app-server transport with controlled process cleanup and safe default approval replies.
+- ChatGPT and OpenAI API-key connections for macOS, Linux and Windows on x64 and arm64.
+- Private browser and device-code sign-in, isolated API-key configuration, and live connection status.
+- Model discovery, reasoning effort selection, streaming conversations, cancellation and resume.
+- Command and file approvals, crash recovery, and per-session turn budgets.
+- ChatGPT quota windows, reset times, per-turn token counts, and resumable quota errors.
+- Assigned stdio and HTTP MCP servers with per-tool permissions and one-call approvals.
+- Managed workspace skills with automatic/manual invocation and source-preserving cleanup.
+- Native subagents with inherited permissions, attributed output and bounded concurrency.
+- PNG, JPEG and GIF image prompts with bounded in-memory transport.
+- Read-only discovery of existing MCP definitions and user/project skills, with secret markers.
+- Windows sandbox readiness diagnostics.
+- Offline release conformance and weekly/manual Codex schema compatibility checks.
 
 ### Changed
 
-- Upgrade to arvel-sdk v0.2.0 with explicit isolated conformance environments, provider-specific skill catalogues and ownership-safe materialization.
-
-- **BREAKING:** New ChatGPT connections require a separate Arvel sign-in; sign in again through the connection settings instead of relying on your personal Codex login.
-- **BREAKING:** Require Codex 0.164.0 or newer for the verified session isolation controls; update the CLI before reconnecting.
-
-- Clarify independent plugin development and the production host sandbox compatibility gate.
-
-### Fixed
-
-### Removed
-
-### Security
+- Keep provider skill catalogues separate and preserve original skills and other live session copies.
+- **BREAKING:** ChatGPT connections require a separate Arvel sign-in. Recreate legacy shared-login connections and sign in through Arvel settings; personal terminal credentials are not reused.
+- **BREAKING:** Require Codex CLI 0.164.0 or newer. Update the CLI before creating or reconnecting an Arvel connection.

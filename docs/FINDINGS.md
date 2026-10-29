@@ -1395,3 +1395,17 @@ cleanup error propagation and ordered schema tuples. Generic array equality
 now preserves tuple/const/default positions; unordered matching is limited
 to explicit schema sets/unions. The tuple regression failed before that fix
 and the same check, full race/static checks and 0.165.0 comparison pass afterward.
+
+## v0.1.0 release delivery override (2026-10-29)
+
+The owner explicitly authorized releasing without waiting for CI, including
+local assembly, tag creation and publication without further confirmations.
+This supersedes the blocked remote-run/delivery requirement for this release.
+The actual runner allocation failures remain infrastructure-blocked evidence;
+no CI or native result is relabeled PASS. Use the locally verified source,
+81/0/0 production-binary conformance and local 0.165.0 schema guard, and build
+all release assets with the pinned GoReleaser v2.19.0 configuration. Upload
+only its unmodified generated archives/checksums/manifest. Native verification
+remains in the accepted post-release backlog, and the normal CI workflows stay
+available for later releases. Real host M5c certification and interactive
+browser/device-code/approval checks remain separate from synthetic conformance.
