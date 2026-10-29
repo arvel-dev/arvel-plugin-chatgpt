@@ -1,12 +1,11 @@
 # Bootstrap Findings
 
-G0 bootstrap evidence is complete under the approved plugin-first scope; the
-plugin is not release-ready. The SDK scaffold, recording tools and
-local evidence are implemented. Headless Linux device-code sign-in is verified. The user explicitly deferred
-Arvel sandbox/P9 measurements to future host integration so plugin development
-can proceed first. The production provider
-intentionally reports an incomplete bootstrap; agent execution starts in later
-milestones.
+G0–G5 implementation and local evidence are complete under the owner-approved
+scope. G6 release tooling is being verified against SDK v0.2.0. Historical
+bootstrap sections below retain their original version/evidence context; they
+are not the current implementation status. Native Windows/CI acceptance is
+explicitly deferred until after v0.1.0, and real Arvel M5c sandbox compatibility
+remains an independent integration check. No publication is implied.
 
 ## Evidence and authority
 
@@ -1322,3 +1321,77 @@ checkpoint c4f155b. Native CI run 40751856106 still has no executed steps;
 this decision does not change its infrastructure-blocked result. The separate
 post-release backlog records readiness, executable/shim and process-tree
 checks. No beta, merge or publication is authorized by this acceptance.
+
+## G6 — SDK v0.2.0 and configured release conformance
+
+Released SDK v0.2.0 resolves to 97ffa3e0347293f0736554e3b412eafea08bd042.
+Compared with v0.1.3, production plugin/protocol APIs, manifest schema,
+Materialize ownership and Go >=1.27.2 are unchanged. Its checker adds --test-env,
+explicit connection inputs, isolated data/workspace/home directories, prepared
+startup environment and strict active cancel/busy probes. This repository now
+pins v0.2.0 coherently; historical fixture sdkVersion fields remain unchanged.
+
+The old TestProvider_FakeVendorThroughSDK unconditionally expected session
+creation to fail. v0.1.3's cwd=/ masked that G2-era assertion; the v0.2.0 mockhost
+uses a valid temporary workspace, so an authorized API-key session correctly
+succeeds. The corrected test completes an API-key turn and retains typed session
+denial for deliberate legacy shared-login status-only mode. No production
+connection validation or private authentication was weakened.
+
+The standalone offline fake models the recorded stable app-server interface
+and accepts synthetic public login requests. The production executable uses
+manifest codexPath, without ARVEL_DEV or a test-only runtime path. Its
+connection environment continues dropping arbitrary inherited fixture-mode
+variables. Concurrency/hold modes therefore use explicit synthetic prompt text.
+Held turns emit more than one mapped update because the mapper deliberately
+retains a trailing update and the sanitizer retains a bounded secret suffix.
+Proxy checks use complete agentMessage items so the SDK's per-message NAME=VALUE
+collector receives whole lines after production redaction, never a forged
+startup proxy value.
+
+The first full local configured SDK release run returned 77 PASS, 0 FAIL,
+0 SKIP, including an actual overlapping two-thread barrier, active cancel/busy
+and unpredictable proxy forwarding. These are synthetic host-interface checks,
+not new real-Codex or model measurements. Final verification results are kept
+with the local milestone reports.
+
+The SDK YAML collector omits top-level session notification metadata, so child
+attribution remains explicitly asserted by the existing raw SDK-wire tests.
+Scenario initialization does not expose Platform.Remote; device-code behavior
+remains covered by existing remote-login tests. No nonexistent action ID or
+custom SDK field was added to work around these limits.
+
+Schema-drift protects 40 production methods/notifications and explicit response
+roots, resolving methods semantically and refs locally. It compares the full
+reachable baseline contract conservatively. Historical byte-exact schema
+reproducibility and fixture schema overrides remain intact; neither a schema
+guard nor historical replay alone certifies latest runtime compatibility.
+
+The added production-surface.json is an inventory array, not a generated schema.
+A regression first reproduced the offline loader compiling it as JSON Schema.
+The existing loader, schema-count test and byte-reproducibility file inventory
+now exclude that exact metadata filename, like surface.json; all 320 generated
+baseline schemas and historical fixture validation remain enforced.
+
+Final configured release conformance after adding model switching and explicit
+file denial returned 81 PASS, 0 FAIL, 0 SKIP across 19 scenarios and the built-in
+release probes. The complete local race/static/fixture/discovery checks pass.
+Latest npm lookup returned Codex 0.165.0; its freshly generated default schema
+passed the 40-method guard locally. This adds schema-only evidence for 0.165.0,
+not real-account/runtime support. The weekly/manual remote job still needs to
+execute after the workflow reaches GitHub.
+
+GoReleaser v2.19.0 (download checked against its published archive checksum)
+validated the config and built a nonpublishing snapshot for all six targets.
+Each archive contains only the correct provider binary, LICENSE, NOTICE and
+the identical versioned manifest; seven SHA-256 checksum entries passed. With
+no existing repository tags, this local snapshot is 0.0.0-SNAPSHOT-2eb5771; it
+is not v0.1.0 and no tag, draft or publication was created. Full native matrix
+acceptance remains post-release; runner availability must be checked on delivery.
+
+Final review added regression checks for malformed synthetic MCP config,
+checker-report streaming limits (including io.Copy's optimized interfaces),
+cleanup error propagation and ordered schema tuples. Generic array equality
+now preserves tuple/const/default positions; unordered matching is limited
+to explicit schema sets/unions. The tuple regression failed before that fix
+and the same check, full race/static checks and 0.165.0 comparison pass afterward.

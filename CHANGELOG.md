@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- Offline release conformance with isolated synthetic dependencies and weekly Codex schema drift checks.
+
 - Native subagents with inherited permissions, child output attribution and cancellation.
 - Windows sandbox readiness diagnostics and SDK executable/shim launch checks.
 
@@ -31,7 +33,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Upgrade to arvel-sdk v0.1.3 with provider-specific skill catalogues and ownership-safe materialization.
+- Upgrade to arvel-sdk v0.2.0 with explicit isolated conformance environments, provider-specific skill catalogues and ownership-safe materialization.
 
 - **BREAKING:** New ChatGPT connections require a separate Arvel sign-in; sign in again through the connection settings instead of relying on your personal Codex login.
 - **BREAKING:** Require Codex 0.164.0 or newer for the verified session isolation controls; update the CLI before reconnecting.
