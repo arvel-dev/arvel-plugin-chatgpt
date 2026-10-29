@@ -4,7 +4,7 @@ go 1.27.2
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/arvel-dev/arvel-sdk v0.1.3
+	github.com/arvel-dev/arvel-sdk v0.2.0
 	github.com/coder/acp-go-sdk v0.13.5
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
 	golang.org/x/sys v0.49.0
