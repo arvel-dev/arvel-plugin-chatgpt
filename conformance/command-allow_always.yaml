@@ -1,0 +1,53 @@
+{
+  "name": "command-allow_always",
+  "steps": [
+    {
+      "call": "session/new",
+      "params": {
+        "cwd": "{{workspace}}",
+        "mcpServers": [],
+        "_meta": {
+          "arvel": {
+            "permissions": {
+              "read": "allow",
+              "edit": "ask",
+              "network": "ask",
+              "commands": {
+                "default": "ask"
+              }
+            }
+          }
+        }
+      },
+      "save": {
+        "session": "$.sessionId"
+      }
+    },
+    {
+      "call": "session/prompt",
+      "params": {
+        "sessionId": "{{session}}",
+        "prompt": [
+          {
+            "type": "text",
+            "text": "approve"
+          }
+        ]
+      },
+      "expect": {
+        "stopReason": "end_turn"
+      },
+      "answerPermissions": "allow_always",
+      "expectUpdates": [
+        {
+          "sessionUpdate": "agent_message_chunk",
+          "subset": {
+            "content": {
+              "text": "acceptForSession"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

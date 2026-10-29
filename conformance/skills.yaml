@@ -1,0 +1,41 @@
+{
+  "name": "skills",
+  "steps": [
+    {
+      "call": "session/new",
+      "params": {
+        "cwd": "{{workspace}}",
+        "mcpServers": [],
+        "_meta": {
+          "arvel": {
+            "skills": [
+              {
+                "name": "owned",
+                "path": "CONFORMANCE_SKILL_SOURCE",
+                "invocation": "manual"
+              }
+            ]
+          }
+        }
+      },
+      "save": {
+        "session": "$.sessionId"
+      }
+    },
+    {
+      "call": "session/prompt",
+      "params": {
+        "sessionId": "{{session}}",
+        "prompt": [
+          {
+            "type": "text",
+            "text": "$owned expect-skill"
+          }
+        ]
+      },
+      "expect": {
+        "stopReason": "end_turn"
+      }
+    }
+  ]
+}

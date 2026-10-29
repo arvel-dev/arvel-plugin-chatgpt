@@ -1,0 +1,46 @@
+{
+  "name": "options",
+  "steps": [
+    {
+      "call": "session/new",
+      "params": {
+        "cwd": "{{workspace}}",
+        "mcpServers": []
+      },
+      "save": {
+        "session": "$.sessionId"
+      }
+    },
+    {
+      "call": "session/set_config_option",
+      "params": {
+        "sessionId": "{{session}}",
+        "configId": "model",
+        "value": "synthetic-other"
+      }
+    },
+    {
+      "call": "session/set_config_option",
+      "params": {
+        "sessionId": "{{session}}",
+        "configId": "effort",
+        "value": "high"
+      }
+    },
+    {
+      "call": "session/prompt",
+      "params": {
+        "sessionId": "{{session}}",
+        "prompt": [
+          {
+            "type": "text",
+            "text": "expect other expect high"
+          }
+        ]
+      },
+      "expect": {
+        "stopReason": "end_turn"
+      }
+    }
+  ]
+}

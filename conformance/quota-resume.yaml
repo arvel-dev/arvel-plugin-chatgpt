@@ -1,0 +1,63 @@
+{
+  "name": "quota-resume",
+  "steps": [
+    {
+      "call": "session/new",
+      "params": {
+        "cwd": "{{workspace}}",
+        "mcpServers": []
+      },
+      "save": {
+        "session": "$.sessionId"
+      }
+    },
+    {
+      "call": "session/prompt",
+      "params": {
+        "sessionId": "{{session}}",
+        "prompt": [
+          {
+            "type": "text",
+            "text": "usage quota"
+          }
+        ]
+      },
+      "expect": {
+        "_meta": {
+          "arvel": {
+            "stop": {
+              "code": "rate_limited",
+              "retryable": true
+            },
+            "usage": {
+              "inputTokens": 20
+            }
+          }
+        }
+      }
+    },
+    {
+      "call": "session/load",
+      "params": {
+        "sessionId": "{{session}}",
+        "cwd": "{{workspace}}",
+        "mcpServers": []
+      }
+    },
+    {
+      "call": "session/prompt",
+      "params": {
+        "sessionId": "{{session}}",
+        "prompt": [
+          {
+            "type": "text",
+            "text": "usage continue"
+          }
+        ]
+      },
+      "expect": {
+        "stopReason": "end_turn"
+      }
+    }
+  ]
+}

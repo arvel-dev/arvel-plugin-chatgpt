@@ -30,3 +30,12 @@ The provider TestMain fake also serves historical rate-limit reads, sparse quota
 pushes, token counters, retry advisories and typed quota/model failures. These
 scenarios are synthetic, including quota exhaustion; they do not establish live
 OpenAI billing, real-account quota rejection or host sandbox compatibility.
+
+## Standalone conformance dependency
+
+`cmd/fake-codex` and `internal/fakecodex` implement the separate synthetic
+app-server used by `cmd/check-conformance`. Its embedded catalog, account
+transitions, thread/approval/usage events and prompt-driven probe modes are
+authored offline test data. They are not real vendor recordings and never
+execute command text, MCP endpoints, model calls or read credential files.
+Use the runner's generated environment, not your normal Codex account.

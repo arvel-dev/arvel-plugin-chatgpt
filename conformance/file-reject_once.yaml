@@ -1,0 +1,53 @@
+{
+  "name": "file-reject_once",
+  "steps": [
+    {
+      "call": "session/new",
+      "params": {
+        "cwd": "{{workspace}}",
+        "mcpServers": [],
+        "_meta": {
+          "arvel": {
+            "permissions": {
+              "read": "allow",
+              "edit": "ask",
+              "network": "deny",
+              "commands": {
+                "default": "ask"
+              }
+            }
+          }
+        }
+      },
+      "save": {
+        "session": "$.sessionId"
+      }
+    },
+    {
+      "call": "session/prompt",
+      "params": {
+        "sessionId": "{{session}}",
+        "prompt": [
+          {
+            "type": "text",
+            "text": "approve file"
+          }
+        ]
+      },
+      "expect": {
+        "stopReason": "end_turn"
+      },
+      "answerPermissions": "reject_once",
+      "expectUpdates": [
+        {
+          "sessionUpdate": "agent_message_chunk",
+          "subset": {
+            "content": {
+              "text": "decline"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
