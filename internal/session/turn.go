@@ -4,6 +4,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"sync"
 	"time"
 
@@ -118,6 +119,8 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 	input = selectedSkills(input, s.params.Meta.Skills, s.skillCatalog)
 	thread, model, effort := s.snapshot.VendorID, s.snapshot.Model, s.snapshot.Effort
 	previousTurn := s.snapshot.LastTurn
+	completedTurns := maps.Clone(s.completedTurns)
+	isPrevious := func(id string) bool { _, ok := completedTurns[id]; return id != "" && (id == previousTurn || ok) }
 	imageCount := 0
 	for _, item := range input {
 		if item.Type == "image" {
@@ -145,7 +148,7 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 	bind := func(id string) bool {
 		turnMu.Lock()
 		defer turnMu.Unlock()
-		if id == "" || len(id) > 256 || id == previousTurn {
+		if id == "" || len(id) > 256 || isPrevious(id) {
 			return false
 		}
 		if turnID == "" {
@@ -280,6 +283,12 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 			s.mu.Lock()
 			s.snapshot.Turns++
 			s.snapshot.LastTurn = currentTurn()
+			if s.completedTurns == nil {
+				s.completedTurns = map[string]struct{}{}
+			}
+			if len(s.completedTurns) < maxItems {
+				s.completedTurns[currentTurn()] = struct{}{}
+			}
 			s.mu.Unlock()
 			if ctx.Err() != nil {
 				return plugin.TurnResult{}, ctx.Err()
@@ -361,7 +370,7 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 				abort()
 				return plugin.TurnResult{}, setupError("Invalid Codex session event")
 			}
-			if identity.ThreadID == thread && previousTurn != "" && identity.TurnID == previousTurn {
+			if identity.ThreadID == thread && isPrevious(identity.TurnID) {
 				continue
 			}
 			if handled, err := tree.push(active.permissionContext, next.event); err != nil {
@@ -410,7 +419,7 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 			}
 			if next.event.Method == "turn/started" || next.event.Method == "turn/completed" {
 				var lifecycle schema.TurnEvent
-				if json.Unmarshal(next.event.Params, &lifecycle) == nil && previousTurn != "" && lifecycle.Turn.ID == previousTurn {
+				if json.Unmarshal(next.event.Params, &lifecycle) == nil && isPrevious(lifecycle.Turn.ID) {
 					continue
 				}
 				if !bind(lifecycle.Turn.ID) {
@@ -426,7 +435,7 @@ func (s *Session) runTurn(ctx context.Context, input []schema.UserInput, out plu
 				}
 				continue
 			}
-			if previousTurn != "" && identity.TurnID == previousTurn {
+			if isPrevious(identity.TurnID) {
 				continue
 			}
 			if !bind(identity.TurnID) {

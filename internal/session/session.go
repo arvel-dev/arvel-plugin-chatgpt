@@ -60,6 +60,7 @@ type Session struct {
 	sub                *Subscription
 	catalog            protocol.ModelsResult
 	snapshot           Snapshot
+	completedTurns     map[string]struct{}
 	active             *activeTurn
 	closed             bool
 	detached           bool
@@ -235,8 +236,23 @@ func (s *Session) connect(ctx context.Context, resume string) error {
 			return setupError("Cannot prepare subagent routing")
 		}
 	}
+	completed := map[string]struct{}{}
+	if len(response.Thread.Turns) > maxItems {
+		return setupError("Codex resumed history exceeds the session limit")
+	}
+	for _, turn := range response.Thread.Turns {
+		if turn.ID == "" || len(turn.ID) > 256 {
+			return setupError("Codex returned an invalid historical turn identity")
+		}
+		switch turn.Status {
+		case "completed", "interrupted", "failed":
+			completed[turn.ID] = struct{}{}
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.completedTurns = completed
+	s.log.Debug("[FIX:resume-turns] restored terminal turn identities", "turns", len(completed))
 	if s.sub != nil {
 		s.sub.Close()
 	}

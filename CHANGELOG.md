@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Resume conversations after a provider restart without confusing delayed historical events with the next turn.
+
 ## [0.1.0] - 2026-10-29
 
 ### Added

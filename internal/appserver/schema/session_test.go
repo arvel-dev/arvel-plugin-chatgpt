@@ -89,3 +89,46 @@ func TestSessionContracts_ReplayObservedStablePayloads(t *testing.T) {
 		}
 	}
 }
+
+func TestThreadResumeResponse_RetainsRecordedTerminalTurnIdentities(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "testdata", "fixtures", "resume", "transcript.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var resumeID string
+	seen := false
+	for _, line := range bytes.Split(raw, []byte{'\n'}) {
+		if len(line) == 0 {
+			continue
+		}
+		var entry struct {
+			Message struct {
+				ID     json.RawMessage `json:"id"`
+				Method string          `json:"method"`
+				Result json.RawMessage `json:"result"`
+			} `json:"message"`
+		}
+		if err := json.Unmarshal(line, &entry); err != nil {
+			t.Fatal(err)
+		}
+		if entry.Message.Method == "thread/resume" {
+			resumeID = string(entry.Message.ID)
+			continue
+		}
+		if resumeID == "" || string(entry.Message.ID) != resumeID || len(entry.Message.Result) == 0 {
+			continue
+		}
+		validate(t, "ThreadResumeResponse.json", entry.Message.Result)
+		var response s.ThreadResponse
+		if err := json.Unmarshal(entry.Message.Result, &response); err != nil {
+			t.Fatal(err)
+		}
+		if len(response.Thread.Turns) != 1 || response.Thread.Turns[0].ID == "" || response.Thread.Turns[0].Status != "completed" {
+			t.Fatal("recorded history lost", response.Thread.Turns)
+		}
+		seen = true
+	}
+	if !seen {
+		t.Fatal("recorded resume response not exercised")
+	}
+}

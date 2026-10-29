@@ -401,3 +401,55 @@ func TestSession_OptionsSurviveIdleReloadAndBudget(t *testing.T) {
 		t.Fatal("over-budget turn sent")
 	}
 }
+
+func TestSession_LoadAfterRestartIgnoresHistoricalTurnEvents(t *testing.T) {
+	for _, kind := range []string{"delta", "lifecycle", "usage"} {
+		t.Run(kind, func(t *testing.T) {
+			original, b := sessionFixture(t)
+			id, params := original.ID(), original.params
+			if err := original.Close(testContext(t)); err != nil {
+				t.Fatal(err)
+			}
+			b.replace()
+			replay := func(thread string) {
+				switch kind {
+				case "delta":
+					b.client.event("item/agentMessage/delta", map[string]string{"threadId": thread, "turnId": "old-a", "itemId": "old-message", "delta": "history-leak"})
+				case "lifecycle":
+					b.client.lifecycle("turn/completed", thread, "old-b", "interrupted")
+				case "usage":
+					b.client.event("thread/tokenUsage/updated", map[string]any{"threadId": thread, "turnId": "old-a", "tokenUsage": map[string]any{}})
+				}
+			}
+			b.client.hook = func(_ context.Context, method string, p, r any) (bool, error) {
+				switch method {
+				case "thread/resume":
+					thread := p.(schema.ThreadResumeParams).ThreadID
+					replay(thread)
+					return true, encodeResult(map[string]any{"thread": map[string]any{"id": thread, "turns": []map[string]string{{"id": "old-a", "status": "completed"}, {"id": "old-b", "status": "interrupted"}}}, "model": "model"}, r)
+				case "turn/start":
+					thread := p.(schema.TurnStartParams).ThreadID
+					replay(thread)
+					b.client.lifecycle("turn/started", thread, "fresh", "inProgress")
+					b.client.event("item/agentMessage/delta", map[string]string{"threadId": thread, "turnId": "fresh", "itemId": "fresh-message", "delta": "Fresh response"})
+					b.client.lifecycle("turn/completed", thread, "fresh", "completed")
+					return true, encodeResult(map[string]any{"turn": map[string]string{"id": "fresh", "status": "inProgress"}}, r)
+				}
+				return false, nil
+			}
+			loaded, err := Load(testContext(t), b, b.router, plugin.LoadParams{SessionID: id, SessionParams: params}, nil, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer loaded.Close(testContext(t))
+			out := &testOutput{}
+			result, err := loaded.Prompt(testContext(t), []acp.ContentBlock{acp.TextBlock("continue")}, out)
+			if err != nil || result.StopReason != acp.StopReasonEndTurn {
+				t.Fatalf("loaded prompt: %+v %v", result, err)
+			}
+			if len(out.updates) != 1 || out.updates[0].AgentMessageChunk == nil || out.updates[0].AgentMessageChunk.Content.Text.Text != "Fresh response" {
+				t.Fatal("historical output reached current turn", out.updates)
+			}
+		})
+	}
+}
